@@ -1,0 +1,16 @@
+{
+  "presets": [
+    {"name":"Micro Lift","engine":0,"shift":7,"direction":0,"mix":1.0},
+    {"name":"Micro Drop","engine":0,"shift":-9,"direction":1,"mix":1.0},
+    {"name":"Stereo Air","engine":0,"shift":18,"direction":2,"mix":0.7},
+    {"name":"Bell Alloy","engine":0,"shift":420,"direction":0,"mix":1.0},
+    {"name":"Robot Sideband","engine":0,"shift":1250,"direction":0,"mix":1.0},
+    {"name":"Sub Descent","engine":0,"shift":-220,"direction":1,"mix":0.85},
+    {"name":"Half Spectrum","engine":1,"translate":0,"scale":0.5,"pivot":20,"filterMode":0},
+    {"name":"Double Spectrum","engine":1,"translate":0,"scale":2.0,"pivot":20,"filterMode":0},
+    {"name":"Frozen Glass","engine":1,"scale":1.0,"filterMode":5,"amount":0.85},
+    {"name":"Odd Machine","engine":1,"scale":1.0,"filterMode":3,"amount":1.0},
+    {"name":"Random Dust","engine":1,"scale":1.0,"filterMode":6,"amount":0.68,"seed":41},
+    {"name":"Harmonic Cage","engine":1,"scale":1.0,"filterMode":7,"amount":0.9,"pivot":110}
+  ]
+}

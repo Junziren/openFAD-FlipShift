@@ -1,0 +1,7 @@
+{
+  "name": "openFAD FlipShift",
+  "version": "0.1.0",
+  "author": "UnpureBloom",
+  "description": "Spectral creative frequency shifter for Max for Live prototype and JUCE VST3 implementation",
+  "tags": ["audio", "vst3", "juce", "max-for-live", "frequency-shifter", "spectral"]
+}
