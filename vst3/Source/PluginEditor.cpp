@@ -1,520 +1,353 @@
 #include "PluginEditor.h"
-#include <array>
+#include "BinaryData.h"
+#include <cmath>
+#include <cstring>
+#include <limits>
 
 namespace openfad::flipshift
 {
 namespace
 {
-const auto background = juce::Colour(0xff101416);
-const auto panel = juce::Colour(0xff171d20);
-const auto line = juce::Colour(0xff343b3f);
-const auto text = juce::Colour(0xffdbe3e3);
-const auto muted = juce::Colour(0xff879092);
-const auto mint = juce::Colour(0xff54ddb7);
-const auto amber = juce::Colour(0xffefad3e);
+constexpr std::array<const char*, 14> parameterIDs {
+    ParameterIDs::mode,
+    ParameterIDs::shiftHz,
+    ParameterIDs::scale,
+    ParameterIDs::pivotHz,
+    ParameterIDs::amount,
+    ParameterIDs::widthQ,
+    ParameterIDs::mix,
+    ParameterIDs::outputGainDb,
+    ParameterIDs::quality,
+    ParameterIDs::analyzerView,
+    ParameterIDs::bypass,
+    ParameterIDs::freeze,
+    ParameterIDs::pitchRoot,
+    ParameterIDs::pitchScale
+};
 
-juce::String formatFrequency(float frequency)
+juce::Array<juce::var> makeLogResampledArray(const std::vector<float>& values, int pointCount)
 {
-    if (frequency >= 1000.0f)
-        return juce::String(frequency / 1000.0f, frequency >= 10000.0f ? 0 : 1) + "k";
-    return juce::String(juce::roundToInt(frequency));
+    juce::Array<juce::var> result;
+    if (values.empty() || pointCount <= 0)
+        return result;
+
+    result.ensureStorageAllocated(pointCount);
+    const auto lastIndex = static_cast<float>(values.size() - 1);
+
+    for (int i = 0; i < pointCount; ++i)
+    {
+        const auto normalised = pointCount == 1 ? 0.0f : static_cast<float>(i) / static_cast<float>(pointCount - 1);
+        const auto logarithmic = (std::pow(100.0f, normalised) - 1.0f) / 99.0f;
+        const auto sourcePosition = logarithmic * lastIndex;
+        const auto low = juce::jlimit(0, static_cast<int>(values.size() - 1), static_cast<int>(sourcePosition));
+        const auto high = juce::jmin(low + 1, static_cast<int>(values.size() - 1));
+        const auto fraction = sourcePosition - static_cast<float>(low);
+        result.add(juce::jmap(fraction, values[static_cast<size_t>(low)], values[static_cast<size_t>(high)]));
+    }
+
+    return result;
+}
+
+bool isApprovedExternalUrl(const juce::String& url)
+{
+    static const juce::StringArray approvedUrls {
+        "https://fadrecords.com/openfad/",
+        "https://space.bilibili.com/227573145",
+        "https://space.bilibili.com/227573145/",
+        "https://github.com/Junziren/openFAD-FlipShift",
+        "https://github.com/willren5/openFAD/blob/main/LICENSE"
+    };
+    return approvedUrls.contains(url);
+}
+
+void openApprovedExternalUrl(const juce::String& url)
+{
+    if (!isApprovedExternalUrl(url))
+        return;
+
+#if JUCE_IOS && defined(JucePlugin_Build_AUv3) && JucePlugin_Build_AUv3
+    // AUv3 app extensions cannot use UIApplication to launch a browser.
+    return;
+#elif JUCE_MAC
+    if (juce::SystemStats::isRunningInAppExtensionSandbox())
+        return;
+    juce::URL(url).launchInDefaultBrowser();
+#else
+    juce::URL(url).launchInDefaultBrowser();
+#endif
 }
 } // namespace
 
-SpectrumDisplay::SpectrumDisplay(OpenFADFlipShiftAudioProcessor& processor)
-    : audioProcessor(processor)
-{
-    startTimerHz(60);
-}
-
-SpectrumDisplay::~SpectrumDisplay()
-{
-    stopTimer();
-}
-
-void SpectrumDisplay::timerCallback()
-{
-    audioProcessor.copyAnalyzerFrames(inputDb, outputDb);
-
-    auto& state = audioProcessor.getState();
-    analyzerView = static_cast<int>(*state.getRawParameterValue(ParameterIDs::analyzerView));
-    mode = static_cast<SpectralMode>(static_cast<int>(*state.getRawParameterValue(ParameterIDs::mode)));
-    pivotHz = *state.getRawParameterValue(ParameterIDs::pivotHz);
-    shiftHz = *state.getRawParameterValue(ParameterIDs::shiftHz);
-    amount = *state.getRawParameterValue(ParameterIDs::amount);
-    sampleRate = static_cast<float>(audioProcessor.getSampleRate() > 0.0 ? audioProcessor.getSampleRate() : 48000.0);
-
-    updateSpectrogramImage();
-    repaint();
-}
-
-void SpectrumDisplay::resized()
-{
-    spectrogramImage = {};
-}
-
-juce::Rectangle<int> SpectrumDisplay::getSpectrogramArea() const
-{
-    auto bounds = getLocalBounds();
-    if (analyzerView == 0)
-        return {};
-    if (analyzerView == 1)
-        return bounds;
-    return bounds.removeFromTop(juce::roundToInt(static_cast<float>(bounds.getHeight()) * 0.70f));
-}
-
-juce::Colour SpectrumDisplay::colourForDb(float db) const
-{
-    const auto energy = juce::jlimit(0.0f, 1.0f, (db + 96.0f) / 84.0f);
-    const auto low = juce::Colour(0xff1d1234);
-    const auto middle = juce::Colour(0xff2fb875);
-    const auto high = juce::Colour(0xffffef7a);
-    return energy < 0.58f
-        ? low.interpolatedWith(middle, energy / 0.58f)
-        : middle.interpolatedWith(high, (energy - 0.58f) / 0.42f);
-}
-
-void SpectrumDisplay::updateSpectrogramImage()
-{
-    const auto area = getSpectrogramArea();
-    if (area.isEmpty() || outputDb.size() < 2)
-        return;
-
-    if (spectrogramImage.isNull()
-        || spectrogramImage.getWidth() != area.getWidth()
-        || spectrogramImage.getHeight() != area.getHeight())
-    {
-        spectrogramImage = juce::Image(juce::Image::RGB, area.getWidth(), area.getHeight(), true);
-        juce::Graphics clearGraphics(spectrogramImage);
-        clearGraphics.fillAll(background);
-    }
-
-    const auto width = spectrogramImage.getWidth();
-    const auto height = spectrogramImage.getHeight();
-    if (width <= 1 || height <= 1)
-        return;
-
-    spectrogramImage.moveImageSection(0, 0, 1, 0, width - 1, height);
-    juce::Graphics imageGraphics(spectrogramImage);
-
-    for (int y = 0; y < height; ++y)
-    {
-        const auto displayPosition = static_cast<float>(height - 1 - y) / static_cast<float>(height - 1);
-        const auto linearPosition = (std::pow(10.0f, displayPosition * 2.0f) - 1.0f) / 99.0f;
-        const auto binPosition = linearPosition * static_cast<float>(outputDb.size() - 1);
-        const auto lowBin = juce::jlimit(0, static_cast<int>(outputDb.size() - 1), static_cast<int>(binPosition));
-        const auto highBin = juce::jmin(lowBin + 1, static_cast<int>(outputDb.size() - 1));
-        const auto fraction = binPosition - static_cast<float>(lowBin);
-        const auto db = juce::jmap(fraction, outputDb[static_cast<size_t>(lowBin)], outputDb[static_cast<size_t>(highBin)]);
-        imageGraphics.setColour(colourForDb(db));
-        imageGraphics.fillRect(width - 1, y, 1, 1);
-    }
-}
-
-float SpectrumDisplay::xForBin(int bin, int count, float width) const
-{
-    if (count <= 1)
-        return 0.0f;
-
-    const auto norm = static_cast<float>(bin) / static_cast<float>(count - 1);
-    return std::log10(1.0f + norm * 99.0f) / 2.0f * width;
-}
-
-float SpectrumDisplay::positionForFrequency(float frequency, float extent) const
-{
-    const auto nyquist = juce::jmax(1.0f, sampleRate * 0.5f);
-    const auto norm = juce::jlimit(0.0f, 1.0f, frequency / nyquist);
-    return std::log10(1.0f + norm * 99.0f) / 2.0f * extent;
-}
-
-float SpectrumDisplay::yForDb(float db, float height) const
-{
-    return juce::jmap(juce::jlimit(-96.0f, 0.0f, db), -96.0f, 0.0f, height, 0.0f);
-}
-
-void SpectrumDisplay::paint(juce::Graphics& g)
-{
-    const auto bounds = getLocalBounds().toFloat();
-    juce::Rectangle<float> spectrumArea;
-    juce::Rectangle<float> spectrogramArea;
-
-    if (analyzerView == 0)
-    {
-        spectrumArea = bounds;
-    }
-    else if (analyzerView == 1)
-    {
-        spectrogramArea = bounds;
-    }
-    else
-    {
-        auto split = bounds;
-        spectrogramArea = split.removeFromTop(bounds.getHeight() * 0.70f);
-        split.removeFromTop(4.0f);
-        spectrumArea = split;
-    }
-
-    g.fillAll(background);
-
-    if (!spectrogramArea.isEmpty() && !spectrogramImage.isNull())
-    {
-        g.drawImage(spectrogramImage, spectrogramArea);
-    }
-
-    const std::array<float, 6> frequencyGrid { 100.0f, 500.0f, 1000.0f, 5000.0f, 10000.0f, 20000.0f };
-
-    if (!spectrogramArea.isEmpty())
-    {
-        g.setColour(line.withAlpha(0.65f));
-        for (int i = 0; i <= 8; ++i)
-        {
-            const auto x = spectrogramArea.getX() + spectrogramArea.getWidth() * static_cast<float>(i) / 8.0f;
-            g.drawVerticalLine(static_cast<int>(x), spectrogramArea.getY(), spectrogramArea.getBottom());
-        }
-
-        g.setFont(juce::FontOptions(10.0f));
-        for (const auto frequency : frequencyGrid)
-        {
-            if (frequency >= sampleRate * 0.5f)
-                continue;
-            const auto y = spectrogramArea.getBottom() - positionForFrequency(frequency, spectrogramArea.getHeight());
-            g.setColour(line.withAlpha(0.8f));
-            g.drawHorizontalLine(static_cast<int>(y), spectrogramArea.getX(), spectrogramArea.getRight());
-            g.setColour(text.withAlpha(0.72f));
-            g.drawText(formatFrequency(frequency), static_cast<int>(spectrogramArea.getRight() - 42.0f),
-                       static_cast<int>(y - 13.0f), 36, 12, juce::Justification::right);
-        }
-
-        const auto pivotY = spectrogramArea.getBottom() - positionForFrequency(pivotHz, spectrogramArea.getHeight());
-        g.setColour(amber);
-        g.drawHorizontalLine(static_cast<int>(pivotY), spectrogramArea.getX(), spectrogramArea.getRight());
-        const auto pivotLabel = mode == SpectralMode::mirror ? "MIRROR " : "PIVOT ";
-        g.drawText(juce::String(pivotLabel) + formatFrequency(pivotHz), 10, static_cast<int>(pivotY - 17.0f), 120, 15,
-                   juce::Justification::left);
-
-        if (mode == SpectralMode::shift || mode == SpectralMode::spread || mode == SpectralMode::detune)
-        {
-            const auto destination = juce::jlimit(0.0f, sampleRate * 0.5f, pivotHz + shiftHz * amount);
-            const auto destinationY = spectrogramArea.getBottom()
-                - positionForFrequency(destination, spectrogramArea.getHeight());
-            g.setColour(mint.withAlpha(0.78f));
-            g.drawHorizontalLine(static_cast<int>(destinationY), spectrogramArea.getX(), spectrogramArea.getRight());
-            const auto guideX = spectrogramArea.getRight() - 50.0f;
-            g.drawVerticalLine(static_cast<int>(guideX), juce::jmin(pivotY, destinationY), juce::jmax(pivotY, destinationY));
-        }
-    }
-
-    auto drawCurve = [&](const std::vector<float>& values, juce::Colour colour, float thickness)
-    {
-        if (values.size() < 2)
-            return;
-
-        juce::Path path;
-        for (int i = 0; i < static_cast<int>(values.size()); ++i)
-        {
-            const auto x = spectrumArea.getX() + xForBin(i, static_cast<int>(values.size()), spectrumArea.getWidth());
-            const auto y = spectrumArea.getY() + yForDb(values[static_cast<size_t>(i)], spectrumArea.getHeight());
-            if (i == 0)
-                path.startNewSubPath(x, y);
-            else
-                path.lineTo(x, y);
-        }
-        g.setColour(colour);
-        g.strokePath(path, juce::PathStrokeType(thickness));
-    };
-
-    if (!spectrumArea.isEmpty())
-    {
-        g.setColour(panel);
-        g.fillRect(spectrumArea);
-        g.setColour(line.withAlpha(0.7f));
-        for (const auto frequency : frequencyGrid)
-        {
-            if (frequency >= sampleRate * 0.5f)
-                continue;
-            const auto x = spectrumArea.getX() + positionForFrequency(frequency, spectrumArea.getWidth());
-            g.drawVerticalLine(static_cast<int>(x), spectrumArea.getY(), spectrumArea.getBottom());
-        }
-        for (const auto db : { -72.0f, -48.0f, -24.0f })
-        {
-            const auto y = spectrumArea.getY() + yForDb(db, spectrumArea.getHeight());
-            g.drawHorizontalLine(static_cast<int>(y), spectrumArea.getX(), spectrumArea.getRight());
-        }
-
-        drawCurve(inputDb, muted.withAlpha(0.75f), 1.2f);
-        drawCurve(outputDb, mint, 1.8f);
-
-        g.setFont(juce::FontOptions(10.0f));
-        g.setColour(muted);
-        g.drawText("INPUT", 10, static_cast<int>(spectrumArea.getY() + 6.0f), 48, 14, juce::Justification::left);
-        g.setColour(mint);
-        g.drawText("OUTPUT", 58, static_cast<int>(spectrumArea.getY() + 6.0f), 58, 14, juce::Justification::left);
-    }
-}
-
 OpenFADFlipShiftAudioProcessorEditor::OpenFADFlipShiftAudioProcessorEditor(OpenFADFlipShiftAudioProcessor& processor)
-    : AudioProcessorEditor(&processor), audioProcessor(processor), spectrum(processor)
+    : AudioProcessorEditor(&processor),
+      audioProcessor(processor),
+      browser(makeBrowserOptions())
 {
-    setSize(980, 520);
+    lastParameterValues.fill(std::numeric_limits<float>::quiet_NaN());
+    analyzerInputScratch.reserve(1025);
+    analyzerOutputScratch.reserve(1025);
+    addAndMakeVisible(browser);
 
-    modeBox.addItemList(getModeNames(), 1);
-    qualityBox.addItemList(getQualityNames(), 1);
-    analyzerBox.addItemList(getAnalyzerViewNames(), 1);
-    styleCombo(modeBox);
-    styleCombo(qualityBox);
-    styleCombo(analyzerBox);
+    setResizable(true, true);
+    setResizeLimits(320, 280, 1600, 1200);
+    setSize(1000, 650);
 
-    styleSlider(shiftSlider, " Hz");
-    styleSlider(scaleSlider, "x");
-    styleSlider(pivotSlider, " Hz");
-    styleSlider(amountSlider);
-    styleSlider(widthSlider);
-    styleSlider(mixSlider);
-    styleSlider(gainSlider, " dB");
-
-    shiftSlider.setDoubleClickReturnValue(true, 0.0);
-    scaleSlider.setDoubleClickReturnValue(true, 1.0);
-    pivotSlider.setDoubleClickReturnValue(true, 1000.0);
-    amountSlider.setDoubleClickReturnValue(true, 0.5);
-    widthSlider.setDoubleClickReturnValue(true, 1.0);
-    mixSlider.setDoubleClickReturnValue(true, 0.5);
-    gainSlider.setDoubleClickReturnValue(true, 0.0);
-
-    shiftSlider.setMouseDragSensitivity(320);
-    scaleSlider.setMouseDragSensitivity(300);
-    pivotSlider.setMouseDragSensitivity(360);
-    amountSlider.setMouseDragSensitivity(260);
-    widthSlider.setMouseDragSensitivity(300);
-    mixSlider.setMouseDragSensitivity(260);
-    gainSlider.setMouseDragSensitivity(280);
-
-    amountSlider.textFromValueFunction = [](double value) { return juce::String(juce::roundToInt(value * 100.0)) + " %"; };
-    amountSlider.valueFromTextFunction = [](const juce::String& value) { return value.getDoubleValue() / 100.0; };
-    mixSlider.textFromValueFunction = [](double value) { return juce::String(juce::roundToInt(value * 100.0)) + " %"; };
-    mixSlider.valueFromTextFunction = [](const juce::String& value) { return value.getDoubleValue() / 100.0; };
-
-    addLabeled(modeBox, modeLabel, "MODE");
-    addLabeled(qualityBox, qualityLabel, "QUALITY");
-    addLabeled(analyzerBox, analyzerLabel, "ANALYZER");
-    addLabeled(shiftSlider, shiftLabel, "SHIFT");
-    addLabeled(scaleSlider, scaleLabel, "SCALE");
-    addLabeled(pivotSlider, pivotLabel, "PIVOT");
-    addLabeled(amountSlider, amountLabel, "AMOUNT");
-    addLabeled(widthSlider, widthLabel, "WIDTH/Q");
-    addLabeled(mixSlider, mixLabel, "MIX");
-    addLabeled(gainSlider, gainLabel, "GAIN");
-
-    qualityLabel.setTooltip("FFT quality. Low uses 512 samples, Normal 1024 and High 2048; higher quality increases latency and frequency resolution.");
-    qualityBox.setTooltip(qualityLabel.getTooltip());
-    analyzerLabel.setTooltip("Select the real-time curve view, scrolling time-frequency waterfall, or both together.");
-    analyzerBox.setTooltip(analyzerLabel.getTooltip());
-    mixLabel.setTooltip("Blends the latency-aligned dry signal with the processed spectral signal.");
-    mixSlider.setTooltip(mixLabel.getTooltip());
-    gainLabel.setTooltip("Final output level after dry/wet mixing.");
-    gainSlider.setTooltip(gainLabel.getTooltip());
-
-    bypassButton.setButtonText("BYPASS");
-    freezeButton.setButtonText("FREEZE");
-    bypassButton.setColour(juce::ToggleButton::textColourId, text);
-    freezeButton.setColour(juce::ToggleButton::textColourId, text);
-    bypassButton.setTooltip("Returns the latency-aligned dry signal while keeping host timing stable.");
-    freezeButton.setTooltip("Captures the current spectral frame and holds it until Freeze is released.");
-    addAndMakeVisible(bypassButton);
-    addAndMakeVisible(freezeButton);
-    addAndMakeVisible(spectrum);
-
-    hoverHelp.setReadOnly(true);
-    hoverHelp.setMultiLine(true, true);
-    hoverHelp.setScrollbarsShown(false);
-    hoverHelp.setCaretVisible(false);
-    hoverHelp.setInterceptsMouseClicks(false, false);
-    hoverHelp.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xee111719));
-    hoverHelp.setColour(juce::TextEditor::outlineColourId, amber.withAlpha(0.75f));
-    hoverHelp.setColour(juce::TextEditor::textColourId, text);
-    addAndMakeVisible(hoverHelp);
-    hoverHelp.setVisible(false);
-
-    auto& state = audioProcessor.getState();
-    modeAttachment = std::make_unique<ComboAttachment>(state, ParameterIDs::mode, modeBox);
-    qualityAttachment = std::make_unique<ComboAttachment>(state, ParameterIDs::quality, qualityBox);
-    analyzerAttachment = std::make_unique<ComboAttachment>(state, ParameterIDs::analyzerView, analyzerBox);
-    shiftAttachment = std::make_unique<Attachment>(state, ParameterIDs::shiftHz, shiftSlider);
-    scaleAttachment = std::make_unique<Attachment>(state, ParameterIDs::scale, scaleSlider);
-    pivotAttachment = std::make_unique<Attachment>(state, ParameterIDs::pivotHz, pivotSlider);
-    amountAttachment = std::make_unique<Attachment>(state, ParameterIDs::amount, amountSlider);
-    widthAttachment = std::make_unique<Attachment>(state, ParameterIDs::widthQ, widthSlider);
-    mixAttachment = std::make_unique<Attachment>(state, ParameterIDs::mix, mixSlider);
-    gainAttachment = std::make_unique<Attachment>(state, ParameterIDs::outputGainDb, gainSlider);
-    bypassAttachment = std::make_unique<ButtonAttachment>(state, ParameterIDs::bypass, bypassButton);
-    freezeAttachment = std::make_unique<ButtonAttachment>(state, ParameterIDs::freeze, freezeButton);
-
-    modeBox.onChange = [this] { updateModeControls(); };
-    updateModeControls();
-    startTimerHz(20);
+    audioProcessor.setAnalyzerConsumerActive(true);
+    browser.goToURL(juce::WebBrowserComponent::getResourceProviderRoot() + "index.html?v=7");
+    startTimerHz(30);
 }
 
 OpenFADFlipShiftAudioProcessorEditor::~OpenFADFlipShiftAudioProcessorEditor()
 {
     stopTimer();
-    modeBox.onChange = nullptr;
-    hoverHelp.setVisible(false);
+    audioProcessor.setAnalyzerConsumerActive(false);
+    endActiveParameterGestures();
 }
 
-void OpenFADFlipShiftAudioProcessorEditor::styleSlider(juce::Slider& slider, const juce::String& suffix)
+juce::WebBrowserComponent::Options OpenFADFlipShiftAudioProcessorEditor::makeBrowserOptions()
 {
-    slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setRotaryParameters(juce::degreesToRadians(225.0f), juce::degreesToRadians(495.0f), true);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 17);
-    slider.setTextValueSuffix(suffix);
-    slider.setScrollWheelEnabled(false);
-    slider.setColour(juce::Slider::rotarySliderFillColourId, mint);
-    slider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff3d464a));
-    slider.setColour(juce::Slider::thumbColourId, amber);
-    slider.setColour(juce::Slider::textBoxTextColourId, text);
-    slider.setColour(juce::Slider::textBoxBackgroundColourId, panel);
+    auto options = juce::WebBrowserComponent::Options {};
+
+#if JUCE_WINDOWS
+    options = options
+        .withBackend(juce::WebBrowserComponent::Options::Backend::webview2)
+        .withWinWebView2Options(juce::WebBrowserComponent::Options::WinWebView2 {}
+            .withUserDataFolder(juce::File::getSpecialLocation(juce::File::tempDirectory)
+                .getChildFile("openFAD-FlipShift-WebView2"))
+            .withStatusBarDisabled()
+            .withBuiltInErrorPageDisabled()
+            .withBackgroundColour(juce::Colour(0xffd5d2cd)));
+#endif
+
+    return options
+        .withNativeIntegrationEnabled()
+        .withResourceProvider([](const juce::String& url) { return getResource(url); })
+        .withEventListener("uiReady", [this](const juce::var&)
+        {
+            endActiveParameterGestures();
+            frontendReady = true;
+            lastParameterValues.fill(std::numeric_limits<float>::quiet_NaN());
+            lastAnalyzerSequence = 0;
+            syncNativeSurfaceState(true);
+        })
+        .withEventListener("parameterGesture", [this](const juce::var& payload)
+        {
+            handleParameterEvent(payload);
+        })
+        .withEventListener("openExternal", [](const juce::var& payload)
+        {
+            if (!payload.isObject())
+                return;
+
+            const auto url = payload.getProperty("url", {}).toString();
+            openApprovedExternalUrl(url);
+        });
 }
 
-void OpenFADFlipShiftAudioProcessorEditor::styleCombo(juce::ComboBox& comboBox)
+juce::String OpenFADFlipShiftAudioProcessorEditor::getMimeType(const juce::String& path)
 {
-    comboBox.setJustificationType(juce::Justification::centredLeft);
-    comboBox.setColour(juce::ComboBox::backgroundColourId, panel);
-    comboBox.setColour(juce::ComboBox::outlineColourId, line);
-    comboBox.setColour(juce::ComboBox::textColourId, text);
-    comboBox.setColour(juce::ComboBox::arrowColourId, mint);
+    if (path.endsWithIgnoreCase(".html")) return "text/html";
+    if (path.endsWithIgnoreCase(".js")) return "text/javascript";
+    if (path.endsWithIgnoreCase(".css")) return "text/css";
+    if (path.endsWithIgnoreCase(".svg")) return "image/svg+xml";
+    if (path.endsWithIgnoreCase(".png")) return "image/png";
+    if (path.endsWithIgnoreCase(".json")) return "application/json";
+    return "application/octet-stream";
 }
 
-void OpenFADFlipShiftAudioProcessorEditor::setSliderAvailability(juce::Slider& slider,
-                                                                 juce::Label& label,
-                                                                 bool enabled,
-                                                                 const juce::String& labelText,
-                                                                 const juce::String& tooltip)
+OpenFADFlipShiftAudioProcessorEditor::ResourceResult
+OpenFADFlipShiftAudioProcessorEditor::getResource(const juce::String& url)
 {
-    const auto effectiveTooltip = enabled
-        ? tooltip
-        : "This parameter is not used by the currently selected Spectral mode.";
-    label.setText(labelText, juce::dontSendNotification);
-    label.setTooltip(effectiveTooltip);
-    slider.setTooltip(effectiveTooltip);
-    slider.setEnabled(enabled);
-    label.setAlpha(enabled ? 1.0f : 0.38f);
-    slider.setAlpha(enabled ? 1.0f : 0.32f);
+    auto requestedPath = url.upToFirstOccurrenceOf("?", false, false);
+    requestedPath = requestedPath.trimCharactersAtStart("/");
+    if (requestedPath.isEmpty())
+        requestedPath = "index.html";
+
+    static const juce::StringArray allowedResources { "index.html", "styles.css", "app.js" };
+    if (!allowedResources.contains(requestedPath))
+        return std::nullopt;
+
+    const auto requestedFile = requestedPath;
+
+    for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
+    {
+        const auto* resourceName = BinaryData::namedResourceList[i];
+        const auto originalPath = juce::String(BinaryData::getNamedResourceOriginalFilename(resourceName));
+        if (juce::File(originalPath).getFileName() != requestedFile)
+            continue;
+
+        int dataSize = 0;
+        if (const auto* data = BinaryData::getNamedResource(resourceName, dataSize); data != nullptr && dataSize > 0)
+        {
+            std::vector<std::byte> bytes(static_cast<size_t>(dataSize));
+            std::memcpy(bytes.data(), data, static_cast<size_t>(dataSize));
+            return Resource { std::move(bytes), getMimeType(requestedFile) };
+        }
+    }
+
+    return std::nullopt;
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::handleParameterEvent(const juce::var& payload)
+{
+    if (!payload.isObject())
+        return;
+
+    const auto parameterID = payload.getProperty("id", {}).toString();
+    const auto phase = payload.getProperty("phase", {}).toString();
+    if (phase != "begin" && phase != "value" && phase != "end")
+        return;
+
+    auto* parameter = audioProcessor.getState().getParameter(parameterID);
+    if (parameter == nullptr)
+        return;
+
+    if (phase == "begin")
+    {
+        if (activeParameterGestures.contains(parameter))
+            return;
+
+        parameter->beginChangeGesture();
+        activeParameterGestures.add(parameter);
+        return;
+    }
+
+    if (phase == "end")
+    {
+        const auto activeGestureIndex = activeParameterGestures.indexOf(parameter);
+        if (activeGestureIndex < 0)
+            return;
+
+        parameter->endChangeGesture();
+        activeParameterGestures.remove(activeGestureIndex);
+        return;
+    }
+
+    if (phase == "value" && payload.hasProperty("value"))
+    {
+        const auto value = static_cast<float>(payload.getProperty("value", 0.0));
+        if (!std::isfinite(value))
+            return;
+
+        const auto normalised = parameter->convertTo0to1(value);
+        if (std::isfinite(normalised))
+            parameter->setValueNotifyingHost(juce::jlimit(0.0f, 1.0f, normalised));
+    }
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::endActiveParameterGestures()
+{
+    for (auto* parameter : activeParameterGestures)
+    {
+        if (parameter != nullptr)
+            parameter->endChangeGesture();
+    }
+
+    activeParameterGestures.clearQuick();
 }
 
 void OpenFADFlipShiftAudioProcessorEditor::timerCallback()
 {
-    const auto screenPosition = juce::Desktop::getInstance().getMainMouseSource().getScreenPosition().roundToInt();
-    const auto localPosition = getLocalPoint(nullptr, screenPosition);
-    if (!getLocalBounds().contains(localPosition))
-    {
-        hoverHelp.setVisible(false);
-        displayedHelpText.clear();
+    syncNativeSurfaceState();
+    if (!frontendReady)
         return;
-    }
 
-    for (auto* component = getComponentAt(localPosition); component != nullptr && component != this;
-         component = component->getParentComponent())
+    sendParameterState(false);
+    if (++analyzerTick % 2 == 0)
+        sendAnalyzerFrame();
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::sendParameterState(bool force)
+{
+    std::array<float, parameterIDs.size()> currentValues {};
+    bool changed = force;
+
+    for (size_t i = 0; i < parameterIDs.size(); ++i)
     {
-        if (auto* tooltipClient = dynamic_cast<juce::TooltipClient*>(component))
-        {
-            const auto tooltip = tooltipClient->getTooltip();
-            if (tooltip.isNotEmpty())
-            {
-                if (tooltip != displayedHelpText)
-                {
-                    displayedHelpText = tooltip;
-                    hoverHelp.setText(tooltip, false);
-                }
-                hoverHelp.setVisible(true);
-                hoverHelp.toFront(false);
-                return;
-            }
-        }
+        const auto* rawValue = audioProcessor.getState().getRawParameterValue(parameterIDs[i]);
+        if (rawValue == nullptr)
+            continue;
+
+        const auto value = rawValue->load();
+        currentValues[i] = value;
+        if (!std::isfinite(lastParameterValues[i]) || std::abs(lastParameterValues[i] - value) > 1.0e-6f)
+            changed = true;
     }
-    hoverHelp.setVisible(false);
-    displayedHelpText.clear();
+
+    if (!changed)
+        return;
+
+    juce::DynamicObject::Ptr values = new juce::DynamicObject();
+    for (size_t i = 0; i < parameterIDs.size(); ++i)
+    {
+        lastParameterValues[i] = currentValues[i];
+        values->setProperty(parameterIDs[i], currentValues[i]);
+    }
+
+    juce::DynamicObject::Ptr payload = new juce::DynamicObject();
+    payload->setProperty("values", juce::var(values.get()));
+    payload->setProperty("sampleRate", audioProcessor.getSampleRate() > 0.0 ? audioProcessor.getSampleRate() : 48000.0);
+    browser.emitEventIfBrowserIsVisible("parameterState", juce::var(payload.get()));
 }
 
-void OpenFADFlipShiftAudioProcessorEditor::updateModeControls()
+void OpenFADFlipShiftAudioProcessorEditor::sendAnalyzerFrame()
 {
-    auto modeIndex = modeBox.getSelectedItemIndex();
-    if (modeIndex < 0)
-        modeIndex = static_cast<int>(*audioProcessor.getState().getRawParameterValue(ParameterIDs::mode));
+    if (!audioProcessor.copyAnalyzerFrames(
+            analyzerInputScratch, analyzerOutputScratch, lastAnalyzerSequence))
+        return;
 
-    modeIndex = juce::jlimit(0, static_cast<int>(SpectralMode::count) - 1, modeIndex);
-    const auto selectedMode = static_cast<SpectralMode>(modeIndex);
-    const auto info = getModeControlInfo(selectedMode);
-    const auto modeName = getModeNames()[modeIndex];
-    const auto modeTooltip = modeName + ": " + info.description;
-    modeLabel.setTooltip(modeTooltip);
-    modeBox.setTooltip(modeTooltip);
-
-    shiftSlider.setTextValueSuffix(info.shiftSuffix);
-    setSliderAvailability(shiftSlider, shiftLabel, info.usesShift, info.shiftLabel, info.shiftTooltip);
-    setSliderAvailability(scaleSlider, scaleLabel, info.usesScale, info.scaleLabel, info.scaleTooltip);
-    setSliderAvailability(pivotSlider, pivotLabel, info.usesPivot, info.pivotLabel, info.pivotTooltip);
-    setSliderAvailability(amountSlider, amountLabel, info.usesAmount, info.amountLabel, info.amountTooltip);
-    setSliderAvailability(widthSlider, widthLabel, info.usesWidth, info.widthLabel, info.widthTooltip);
+    constexpr auto displayPoints = 192;
+    juce::DynamicObject::Ptr payload = new juce::DynamicObject();
+    payload->setProperty("input", makeLogResampledArray(analyzerInputScratch, displayPoints));
+    payload->setProperty("output", makeLogResampledArray(analyzerOutputScratch, displayPoints));
+    browser.emitEventIfBrowserIsVisible("analyzerFrame", juce::var(payload.get()));
 }
 
-void OpenFADFlipShiftAudioProcessorEditor::addLabeled(juce::Component& control, juce::Label& label, const juce::String& labelText)
+void OpenFADFlipShiftAudioProcessorEditor::paint(juce::Graphics& graphics)
 {
-    label.setText(labelText, juce::dontSendNotification);
-    label.setColour(juce::Label::textColourId, muted);
-    label.setFont(juce::FontOptions(10.0f));
-    addAndMakeVisible(label);
-    addAndMakeVisible(control);
-}
-
-void OpenFADFlipShiftAudioProcessorEditor::paint(juce::Graphics& g)
-{
-    g.fillAll(background);
-    g.setColour(line);
-    g.drawRect(getLocalBounds(), 1);
-    g.setColour(mint);
-    g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
-    g.drawText("openFAD FLIPSHIFT", 16, 8, 260, 28, juce::Justification::left);
-    g.setColour(muted);
-    g.setFont(juce::FontOptions(11.0f));
-    g.drawText("SPECTRAL FLIP / SHIFT / SCALE", getWidth() - 240, 11, 220, 22, juce::Justification::right);
+    graphics.fillAll(juce::Colour(0xffd5d2cd));
 }
 
 void OpenFADFlipShiftAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds().reduced(12);
-    area.removeFromTop(34);
-    const auto spectrumBounds = area.removeFromTop(300);
-    spectrum.setBounds(spectrumBounds);
-    hoverHelp.setBounds(spectrumBounds.reduced(10).removeFromTop(52));
-    auto controls = area.reduced(0, 8);
+    browser.setBounds(getLocalBounds());
+}
 
-    auto placeCombo = [](juce::Rectangle<int> slot, juce::Label& label, juce::Component& control)
+void OpenFADFlipShiftAudioProcessorEditor::visibilityChanged()
+{
+    syncNativeSurfaceState();
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::parentHierarchyChanged()
+{
+    syncNativeSurfaceState();
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::syncNativeSurfaceState(bool forceFrontendSync)
+{
+    const auto visible = isVisible();
+    const auto visibilityChanged = lastSurfaceVisible != visible;
+    lastSurfaceVisible = visible;
+    if (!visibilityChanged && !forceFrontendSync)
+        return;
+
+    if (!visible)
     {
-        label.setBounds(slot.removeFromTop(13));
-        control.setBounds(slot.removeFromTop(26));
-    };
-    auto placeSlider = [](juce::Rectangle<int> slot, juce::Label& label, juce::Slider& slider)
+        endActiveParameterGestures();
+        lastAnalyzerSequence = 0;
+    }
+
+    if (!frontendReady)
+        return;
+
+    juce::DynamicObject::Ptr payload = new juce::DynamicObject();
+    payload->setProperty("visible", visible);
+    browser.emitEventIfBrowserIsVisible("surfaceVisibility", juce::var(payload.get()));
+
+    if (visible)
     {
-        label.setBounds(slot.removeFromTop(14));
-        slider.setBounds(slot);
-    };
-
-    constexpr auto modeWidth = 144;
-    constexpr auto rightWidth = 116;
-    placeCombo(controls.removeFromLeft(modeWidth).reduced(4, 0), modeLabel, modeBox);
-
-    auto right = controls.removeFromRight(rightWidth).reduced(4, 0);
-    const auto sliderWidth = controls.getWidth() / 7;
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), shiftLabel, shiftSlider);
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), scaleLabel, scaleSlider);
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), pivotLabel, pivotSlider);
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), amountLabel, amountSlider);
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), widthLabel, widthSlider);
-    placeSlider(controls.removeFromLeft(sliderWidth).reduced(3, 0), mixLabel, mixSlider);
-    placeSlider(controls.reduced(3, 0), gainLabel, gainSlider);
-
-    placeCombo(right.removeFromTop(42), qualityLabel, qualityBox);
-    placeCombo(right.removeFromTop(42), analyzerLabel, analyzerBox);
-    bypassButton.setBounds(right.removeFromTop(26));
-    freezeButton.setBounds(right.removeFromTop(26));
+        sendParameterState(true);
+        sendAnalyzerFrame();
+    }
 }
 } // namespace openfad::flipshift

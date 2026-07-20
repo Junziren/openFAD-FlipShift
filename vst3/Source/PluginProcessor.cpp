@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cmath>
 
 namespace openfad::flipshift
 {
@@ -20,6 +21,12 @@ juce::ValueTree copyCurrentParameterState(juce::AudioProcessorValueTreeState& pa
 
     return snapshot;
 }
+
+Quality qualityFromValue(float value) noexcept
+{
+    const auto finiteValue = std::isfinite(value) ? value : static_cast<float>(Quality::normal);
+    return static_cast<Quality>(juce::jlimit(0, 2, static_cast<int>(std::round(finiteValue))));
+}
 } // namespace
 
 OpenFADFlipShiftAudioProcessor::OpenFADFlipShiftAudioProcessor()
@@ -29,17 +36,41 @@ OpenFADFlipShiftAudioProcessor::OpenFADFlipShiftAudioProcessor()
       parameters(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
     setLatencySamples(FlipShiftEngine::getLatencySamplesForQuality(Quality::normal));
+    parameters.addParameterListener(ParameterIDs::quality, this);
+}
+
+OpenFADFlipShiftAudioProcessor::~OpenFADFlipShiftAudioProcessor()
+{
+    cancelPendingUpdate();
+    parameters.removeParameterListener(ParameterIDs::quality, this);
 }
 
 void OpenFADFlipShiftAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    activeQuality = static_cast<Quality>(static_cast<int>(*parameters.getRawParameterValue(ParameterIDs::quality)));
-    engine.prepare(sampleRate, samplesPerBlock, getTotalNumOutputChannels(), activeQuality);
+    const juce::ScopedLock audioCallbackGuard(getCallbackLock());
+    const juce::ScopedLock configurationLock(engineConfigurationLock);
+    auto values = readParameters();
+    preparedSampleRate = std::isfinite(sampleRate) && sampleRate > 0.0 ? sampleRate : 48000.0;
+    preparedBlockSize = juce::jmax(1, samplesPerBlock);
+    preparedChannels = juce::jmax(1, getTotalNumOutputChannels());
+    engine.prepare(preparedSampleRate, preparedBlockSize, preparedChannels, values);
+    activeQuality.store(static_cast<int>(values.quality), std::memory_order_release);
+    enginePrepared.store(true, std::memory_order_release);
     setLatencySamples(engine.getLatencySamples());
 }
 
 void OpenFADFlipShiftAudioProcessor::releaseResources()
 {
+    const juce::ScopedLock audioCallbackGuard(getCallbackLock());
+    const juce::ScopedLock configurationLock(engineConfigurationLock);
+    enginePrepared.store(false, std::memory_order_release);
+    engine.reset();
+}
+
+void OpenFADFlipShiftAudioProcessor::reset()
+{
+    const juce::ScopedLock audioCallbackGuard(getCallbackLock());
+    const juce::ScopedLock configurationLock(engineConfigurationLock);
     engine.reset();
 }
 
@@ -59,9 +90,11 @@ EngineParameters OpenFADFlipShiftAudioProcessor::readParameters() const
     values.pivotHz = *parameters.getRawParameterValue(ParameterIDs::pivotHz);
     values.amount = *parameters.getRawParameterValue(ParameterIDs::amount);
     values.widthQ = *parameters.getRawParameterValue(ParameterIDs::widthQ);
+    values.pitchRoot = static_cast<int>(*parameters.getRawParameterValue(ParameterIDs::pitchRoot));
+    values.pitchScale = static_cast<PitchScale>(static_cast<int>(*parameters.getRawParameterValue(ParameterIDs::pitchScale)));
     values.mix = *parameters.getRawParameterValue(ParameterIDs::mix);
     values.outputGainDb = *parameters.getRawParameterValue(ParameterIDs::outputGainDb);
-    values.quality = static_cast<Quality>(static_cast<int>(*parameters.getRawParameterValue(ParameterIDs::quality)));
+    values.quality = qualityFromValue(*parameters.getRawParameterValue(ParameterIDs::quality));
     values.bypass = *parameters.getRawParameterValue(ParameterIDs::bypass) > 0.5f;
     values.freeze = *parameters.getRawParameterValue(ParameterIDs::freeze) > 0.5f;
     return values;
@@ -75,14 +108,9 @@ void OpenFADFlipShiftAudioProcessor::processBlock(juce::AudioBuffer<float>& buff
         buffer.clear(channel, 0, buffer.getNumSamples());
 
     auto values = readParameters();
-    const auto qualityChanged = values.quality != activeQuality;
-    if (values.quality != activeQuality)
-        activeQuality = values.quality;
+    values.quality = static_cast<Quality>(activeQuality.load(std::memory_order_acquire));
 
     engine.process(buffer, values);
-
-    if (qualityChanged)
-        setLatencySamples(engine.getLatencySamples());
 }
 
 juce::AudioProcessorEditor* OpenFADFlipShiftAudioProcessor::createEditor()
@@ -103,9 +131,72 @@ void OpenFADFlipShiftAudioProcessor::setStateInformation(const void* data, int s
             parameters.replaceState(juce::ValueTree::fromXml(*xml));
 }
 
-void OpenFADFlipShiftAudioProcessor::copyAnalyzerFrames(std::vector<float>& inputDb, std::vector<float>& outputDb) const
+void OpenFADFlipShiftAudioProcessor::memoryWarningReceived()
 {
-    engine.copyAnalyzerFrames(inputDb, outputDb);
+    engine.invalidateAnalyzerFrames();
+}
+
+void OpenFADFlipShiftAudioProcessor::setAnalyzerConsumerActive(bool active) noexcept
+{
+    engine.setAnalyzerEnabled(active);
+}
+
+bool OpenFADFlipShiftAudioProcessor::copyAnalyzerFrames(std::vector<float>& inputDb,
+                                                        std::vector<float>& outputDb,
+                                                        std::uint64_t& sequence) const
+{
+    return engine.copyAnalyzerFrames(inputDb, outputDb, sequence);
+}
+
+void OpenFADFlipShiftAudioProcessor::parameterChanged(const juce::String& parameterID, float)
+{
+    if (parameterID == ParameterIDs::quality)
+        triggerAsyncUpdate();
+}
+
+void OpenFADFlipShiftAudioProcessor::handleAsyncUpdate()
+{
+    if (!enginePrepared.load(std::memory_order_acquire))
+        return;
+
+    const auto requestedQuality = qualityFromValue(*parameters.getRawParameterValue(ParameterIDs::quality));
+    if (static_cast<int>(requestedQuality) == activeQuality.load(std::memory_order_acquire))
+        return;
+
+    applyPendingQualityChange(requestedQuality);
+}
+
+void OpenFADFlipShiftAudioProcessor::applyPendingQualityChange(Quality requestedQuality)
+{
+    if (!enginePrepared.load(std::memory_order_acquire)
+        || static_cast<int>(requestedQuality) == activeQuality.load(std::memory_order_acquire))
+        return;
+
+    auto values = readParameters();
+    values.quality = requestedQuality;
+
+    const auto wasSuspended = isSuspended();
+    if (!wasSuspended)
+        suspendProcessing(true);
+
+    auto qualityChanged = false;
+    auto updatedLatencySamples = getLatencySamples();
+    {
+        const juce::ScopedLock audioCallbackGuard(getCallbackLock());
+        const juce::ScopedLock configurationLock(engineConfigurationLock);
+        if (enginePrepared.load(std::memory_order_acquire))
+        {
+            engine.prepare(preparedSampleRate, preparedBlockSize, preparedChannels, values);
+            activeQuality.store(static_cast<int>(requestedQuality), std::memory_order_release);
+            updatedLatencySamples = engine.getLatencySamples();
+            qualityChanged = true;
+        }
+    }
+
+    if (qualityChanged)
+        setLatencySamples(updatedLatencySamples);
+    if (!wasSuspended)
+        suspendProcessing(false);
 }
 } // namespace openfad::flipshift
 

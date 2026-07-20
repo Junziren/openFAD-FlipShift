@@ -6,14 +6,17 @@
 
 namespace openfad::flipshift
 {
-class OpenFADFlipShiftAudioProcessor final : public juce::AudioProcessor
+class OpenFADFlipShiftAudioProcessor final : public juce::AudioProcessor,
+                                              private juce::AudioProcessorValueTreeState::Listener,
+                                              private juce::AsyncUpdater
 {
 public:
     OpenFADFlipShiftAudioProcessor();
-    ~OpenFADFlipShiftAudioProcessor() override = default;
+    ~OpenFADFlipShiftAudioProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
+    void reset() override;
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -38,18 +41,30 @@ public:
 
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
+    void memoryWarningReceived() override;
 
     juce::AudioProcessorValueTreeState& getState() noexcept { return parameters; }
     const juce::AudioProcessorValueTreeState& getState() const noexcept { return parameters; }
 
-    void copyAnalyzerFrames(std::vector<float>& inputDb, std::vector<float>& outputDb) const;
+    void setAnalyzerConsumerActive(bool active) noexcept;
+    bool copyAnalyzerFrames(std::vector<float>& inputDb,
+                            std::vector<float>& outputDb,
+                            std::uint64_t& sequence) const;
 
 private:
     EngineParameters readParameters() const;
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
+    void handleAsyncUpdate() override;
+    void applyPendingQualityChange(Quality requestedQuality);
 
     juce::AudioProcessorValueTreeState parameters;
     FlipShiftEngine engine;
-    Quality activeQuality = Quality::normal;
+    std::atomic<int> activeQuality { static_cast<int>(Quality::normal) };
+    std::atomic<bool> enginePrepared { false };
+    juce::CriticalSection engineConfigurationLock;
+    double preparedSampleRate = 48000.0;
+    int preparedBlockSize = 512;
+    int preparedChannels = 2;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFADFlipShiftAudioProcessor)
 };

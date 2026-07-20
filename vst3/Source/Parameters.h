@@ -19,6 +19,8 @@ static constexpr auto quality = "quality";
 static constexpr auto analyzerView = "analyzerView";
 static constexpr auto bypass = "bypass";
 static constexpr auto freeze = "freeze";
+static constexpr auto pitchRoot = "pitchRoot";
+static constexpr auto pitchScale = "pitchScale";
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -26,6 +28,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 juce::StringArray getModeNames();
 juce::StringArray getQualityNames();
 juce::StringArray getAnalyzerViewNames();
+juce::StringArray getPitchRootNames();
+juce::StringArray getPitchScaleNames();
 
 struct ModeControlInfo
 {
@@ -34,6 +38,8 @@ struct ModeControlInfo
     bool usesPivot = false;
     bool usesAmount = false;
     bool usesWidth = false;
+    bool usesPitchRoot = false;
+    bool usesPitchScale = false;
     juce::String description;
     juce::String shiftLabel = "SHIFT";
     juce::String scaleLabel = "SCALE";

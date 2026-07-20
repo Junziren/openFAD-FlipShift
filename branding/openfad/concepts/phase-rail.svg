@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title">
+  <title id="title">openFAD Phase Rail logo concept</title>
+  <defs>
+    <clipPath id="upper"><rect width="760" height="88"/></clipPath>
+    <clipPath id="lower"><rect y="92" width="760" height="88"/></clipPath>
+    <g id="letters" fill="none" stroke-width="15" stroke-linecap="square" stroke-linejoin="bevel">
+      <path d="M54 58H94L108 72V122L94 136H54L40 122V72Z"/>
+      <path d="M136 154V58H178L194 74V106L178 122H136M136 74H170L178 82V98L170 106H136"/>
+      <path d="M286 98H222V76L240 58H270L286 74V98H222V118L240 136H282"/>
+      <path d="M316 136V58M316 78L336 58H360L378 76V136"/>
+      <path d="M424 136V44H494M424 88H480"/>
+      <path d="M516 136L548 44H568L600 136M532 104H584"/>
+      <path d="M630 44H664C699 44 720 61 720 90C720 119 699 136 664 136H630ZM630 60H662C687 60 704 70 704 90C704 110 687 120 662 120H630"/>
+    </g>
+  </defs>
+  <rect x="32" y="86" width="696" height="6" fill="#EFAD3E"/>
+  <g clip-path="url(#upper)" transform="translate(6 -2)" stroke="#54DDB7"><use href="#letters"/></g>
+  <g clip-path="url(#lower)" transform="translate(-6 2)" stroke="#DBE3E3"><use href="#letters"/></g>
+  <g fill="#EFAD3E">
+    <rect x="68" y="82" width="18" height="14"/>
+    <rect x="154" y="82" width="18" height="14"/>
+    <rect x="248" y="82" width="18" height="14"/>
+    <rect x="340" y="82" width="18" height="14"/>
+    <rect x="448" y="82" width="18" height="14"/>
+    <rect x="550" y="82" width="18" height="14"/>
+    <rect x="656" y="82" width="18" height="14"/>
+  </g>
+</svg>

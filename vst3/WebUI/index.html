@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en" data-compact-view="analyze" data-surface="preview">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>FlipShift</title>
+  <link rel="stylesheet" href="styles.css?v=7">
+</head>
+<body>
+  <main class="console-shell">
+    <header class="console-topbar">
+      <div class="product-identity" aria-label="FlipShift spectral processor">
+        <strong>FLIPSHIFT</strong>
+        <small>SPECTRAL TRANSFORM PROCESSOR</small>
+      </div>
+
+      <div class="header-controls">
+        <label class="header-select mode-select" data-description="">
+          <span>PROCESS</span>
+          <select id="mode" data-param="mode" aria-describedby="modeEffectDescription"></select>
+        </label>
+        <span class="sr-only" id="modeEffectDescription"></span>
+
+        <label class="header-select quality-select">
+          <span>QUALITY</span>
+          <select id="quality" data-param="quality" title="FFT quality and latency">
+            <option value="0">LOW</option>
+            <option value="1">NORMAL</option>
+            <option value="2">HIGH</option>
+          </select>
+        </label>
+
+        <div class="header-tool view-tool">
+          <span>DISPLAY</span>
+          <div class="segmented-control" id="analyzerView" data-param="analyzerView" role="group" aria-label="Analyzer display layers">
+            <button type="button" data-analyzer-layer="waterfall" aria-label="Show waterfall" aria-pressed="true" title="Show waterfall">WF</button>
+            <button type="button" data-analyzer-layer="fft" aria-label="Show FFT spectrum" aria-pressed="true" title="Show FFT spectrum">FFT</button>
+          </div>
+        </div>
+
+        <button class="header-toggle freeze-control" id="freeze" data-param="freeze" type="button" aria-pressed="false" title="Hold the current analyzer frame">
+          <span class="toggle-led" aria-hidden="true"></span><span>HOLD</span>
+        </button>
+
+        <button class="header-toggle bypass-control" id="bypass" data-param="bypass" type="button" aria-pressed="false" title="Latency-aligned bypass">
+          <span class="toggle-led" aria-hidden="true"></span><span>BYPASS</span>
+        </button>
+
+        <button class="about-control" id="aboutOpen" type="button" aria-haspopup="dialog" aria-controls="aboutDialog" aria-expanded="false" title="About openFAD FlipShift">
+          <span class="about-icon" aria-hidden="true">i</span><span class="sr-only">About</span>
+        </button>
+
+        <div class="system-state">
+          <div class="bridge-state" aria-live="polite"><span class="status-lamp" aria-hidden="true"></span><span id="bridgeStatus">PREVIEW</span></div>
+          <div class="engine-readout"><span id="fftReadout">1024</span><span id="rateReadout">48k</span></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="compact-view-tabs" id="compactViewTabs" role="tablist" aria-label="Compact workspace view">
+      <button id="compactAnalyzeTab" type="button" role="tab" aria-selected="true" aria-controls="analyzer" data-compact-view="analyze">ANALYZE</button>
+      <button id="compactControlTab" type="button" role="tab" aria-selected="false" aria-controls="parameterStrip" data-compact-view="control" tabindex="-1">CONTROL</button>
+    </div>
+
+    <div class="about-overlay" id="aboutDialog" hidden>
+      <section class="about-panel" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" tabindex="-1">
+        <header class="about-header">
+          <div>
+            <span class="about-kicker">SPECTRAL TRANSFORMATION PROCESSOR</span>
+            <h2 id="aboutTitle">openFAD FlipShift</h2>
+          </div>
+          <button class="about-close" id="aboutClose" type="button" aria-label="Close About" title="Close">X</button>
+        </header>
+
+        <div class="about-body">
+          <p class="about-summary">A creative spectral transformation effect in the openFAD family, developed by UnpureBloom for detailed frequency remapping and visual analysis.</p>
+
+          <nav class="about-links" aria-label="Project links">
+            <a href="https://fadrecords.com/openfad/" target="_blank" rel="noopener noreferrer" data-external-url>
+              <span><strong>openFAD</strong><small>Chinese-first open-source music visual toolset initiated by FAD Records.</small></span><i aria-hidden="true">&#8599;</i>
+            </a>
+            <a href="https://space.bilibili.com/227573145" target="_blank" rel="noopener noreferrer" data-external-url>
+              <span><strong>UnpureBloom</strong><small>Developer and project channel.</small></span><i aria-hidden="true">&#8599;</i>
+            </a>
+            <a href="https://github.com/Junziren/openFAD-FlipShift" target="_blank" rel="noopener noreferrer" data-external-url>
+              <span><strong>Source repository</strong><small>Code, issue tracking and project history.</small></span><i aria-hidden="true">&#8599;</i>
+            </a>
+          </nav>
+
+          <section class="about-section" aria-labelledby="aboutFeaturesTitle">
+            <h3 id="aboutFeaturesTitle">MAIN FUNCTIONS</h3>
+            <ul class="about-features">
+              <li><strong>24 transforms</strong><span>Shift, mirror, harmonic remapping, pitch mapping, glitch, phase and peak-relative modes.</span></li>
+              <li><strong>Long waterfall</strong><span>Four visual LOOK profiles, adjustable speed and preserved spectral history.</span></li>
+              <li><strong>Detailed analysis</strong><span>Input/output FFT, frequency guides, meters, freeze and quality control.</span></li>
+              <li><strong>Host integration</strong><span>VST3/WebView2 and AUv3/WKWebView build paths with automation gestures and state recall.</span></li>
+            </ul>
+          </section>
+
+          <section class="about-license" aria-labelledby="aboutLicenseTitle">
+            <div>
+              <h3 id="aboutLicenseTitle">LICENSE STATUS</h3>
+              <strong>NOT YET DECLARED</strong>
+              <p>The FlipShift repository has no license file, so no permission to copy, modify or redistribute it has been granted. Upstream openFAD uses GNU AGPLv3. This build uses JUCE 8, whose AGPLv3 or commercial licensing route must also be declared before release.</p>
+            </div>
+            <a href="https://github.com/willren5/openFAD/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" data-external-url>OPENFAD AGPLv3 <span aria-hidden="true">&#8599;</span></a>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <section class="analyzer view-both layout-stack" id="analyzer" role="tabpanel" aria-labelledby="compactAnalyzeTab" aria-label="Input and output spectral analyzer">
+      <div class="waterfall-pane">
+        <div class="waterfall-toolbar">
+          <span class="waterfall-title">OUTPUT HISTORY</span>
+          <output class="waterfall-change-readout" id="waterfallChangeReadout" aria-live="polite"></output>
+          <div class="pane-heading-tools">
+            <span class="time-direction">TIME &#8594;</span>
+            <label class="waterfall-rate-control">
+              <span>SPEED</span>
+              <select id="waterfallRate" aria-label="Waterfall scroll speed" title="Waterfall scroll speed">
+                <option value="1">1x</option>
+                <option value="2">2x</option>
+                <option value="4" selected>4x</option>
+                <option value="8">8x</option>
+              </select>
+            </label>
+            <label class="waterfall-visual-control">
+              <span>LOOK</span>
+              <select id="waterfallVisual" aria-label="Waterfall visual profile" title="Waterfall visual profile">
+                <option value="vision" selected>VISION</option>
+                <option value="pulse">PULSE</option>
+                <option value="phosphor">PHOSPHOR</option>
+                <option value="xray">XRAY</option>
+              </select>
+            </label>
+            <label class="waterfall-layout-control">
+              <span>LAYOUT</span>
+              <select id="analyzerLayout" aria-label="Analyzer layout" title="Analyzer layout">
+                <option value="stack" selected>STACK</option>
+                <option value="overlay">OVERLAY</option>
+                <option value="split">SPLIT</option>
+              </select>
+            </label>
+          </div>
+          <canvas class="waterfall-event-canvas" id="waterfallEventCanvas" aria-label="Parameter change timeline"></canvas>
+        </div>
+        <div class="waterfall-data-stage">
+          <canvas id="waterfallCanvas" aria-label="Scrolling output spectrogram with time moving left to right"></canvas>
+          <div class="waterfall-grid" aria-hidden="true"></div>
+          <div class="glitch-selection" id="glitchSelection" hidden aria-hidden="true">
+            <span id="glitchSelectionLabel">GLITCH BAND</span>
+          </div>
+          <output class="pitch-map-readout" id="pitchMapReadout" hidden aria-live="polite">C MAJOR</output>
+          <div class="frequency-grid-lines" aria-hidden="true">
+            <i data-frequency="20000"></i><i data-frequency="10000"></i><i data-frequency="5000"></i><i data-frequency="2000"></i><i data-frequency="1000"></i>
+            <i data-frequency="500"></i><i data-frequency="200"></i><i data-frequency="100"></i><i data-frequency="50"></i><i data-frequency="20"></i>
+          </div>
+          <div class="frequency-guide pivot-guide" id="pivotGuide"><span id="pivotGuideLabel">PIVOT 1.00k</span></div>
+          <div class="frequency-guide destination-guide" id="destinationGuide"></div>
+          <div class="frequency-axis" aria-hidden="true">
+            <span data-frequency="20000">20k</span><span data-frequency="10000">10k</span><span data-frequency="5000">5k</span><span data-frequency="2000">2k</span><span data-frequency="1000">1k</span>
+            <span data-frequency="500">500</span><span data-frequency="200">200</span><span data-frequency="100">100</span><span data-frequency="50">50</span><span data-frequency="20">20</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="spectrum-pane">
+        <canvas id="spectrumCanvas" aria-label="Input and output spectrum"></canvas>
+        <div class="pane-heading"><span>SPECTRUM</span><span>LIVE</span></div>
+        <div class="spectrum-legend"><span class="input-key">INPUT</span><span class="output-key">OUTPUT</span></div>
+      </div>
+    </section>
+
+    <section class="parameter-strip" id="parameterStrip" role="tabpanel" aria-labelledby="compactControlTab" aria-label="Spectral parameters">
+      <article class="parameter-module module-map">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>MAP</strong></header>
+        <div class="module-controls two-controls">
+          <label class="knob-control" data-control="shiftHz" title="Additive spectral offset">
+            <span class="knob-stage">
+              <input id="shiftHz" data-param="shiftHz" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="shiftHzLabel shiftHzValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="shiftHzLabel">SHIFT</span>
+            <output id="shiftHzValue">+0 Hz</output>
+          </label>
+
+          <label class="knob-control" data-control="scale" title="Frequency scaling ratio">
+            <span class="knob-stage">
+              <input id="scale" data-param="scale" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="scaleLabel scaleValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="scaleLabel">SCALE</span>
+            <output id="scaleValue">1.00x</output>
+          </label>
+        </div>
+      </article>
+
+      <article class="parameter-module module-axis" id="axisModule">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>AXIS</strong></header>
+        <div class="module-controls two-controls">
+          <label class="knob-control" data-control="pivotHz" title="Frequency reference for the transform">
+            <span class="knob-stage">
+              <input id="pivotHz" data-param="pivotHz" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="pivotHzLabel pivotHzValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="pivotHzLabel">PIVOT</span>
+            <output id="pivotHzValue">1.00k</output>
+          </label>
+
+          <label class="knob-control" data-control="widthQ" title="Bandwidth or selectivity">
+            <span class="knob-stage">
+              <input id="widthQ" data-param="widthQ" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="widthQLabel widthQValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="widthQLabel">WIDTH/Q</span>
+            <output id="widthQValue">1.00</output>
+          </label>
+        </div>
+      </article>
+
+      <article class="parameter-module module-pitch pitch-map-module" id="pitchMapModule" hidden aria-hidden="true">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>PITCH MAP</strong></header>
+        <div class="pitch-map-controls">
+          <label class="native-choice-control" data-control="pitchRoot" title="Tonic pitch class used by Pitch Map">
+            <span>ROOT</span>
+            <select id="pitchRoot" data-param="pitchRoot" aria-label="Pitch Map root note">
+              <option value="0">C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option>
+              <option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option>
+              <option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option>
+            </select>
+          </label>
+          <label class="native-choice-control" data-control="pitchScale" title="Major or minor pitch-class map">
+            <span>SCALE</span>
+            <select id="pitchScale" data-param="pitchScale" aria-label="Pitch Map scale">
+              <option value="0">MAJOR</option>
+              <option value="1">MINOR</option>
+            </select>
+          </label>
+        </div>
+      </article>
+
+      <article class="parameter-module module-morph">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>MORPH</strong></header>
+        <div class="module-controls one-control">
+          <label class="knob-control" data-control="amount" title="Transform depth">
+            <span class="knob-stage">
+              <input id="amount" data-param="amount" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="amountLabel amountValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="amountLabel">AMOUNT</span>
+            <output id="amountValue">50%</output>
+          </label>
+        </div>
+      </article>
+
+      <article class="parameter-module module-blend">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>BLEND</strong></header>
+        <div class="module-controls one-control">
+          <label class="knob-control" data-control="mix" title="Latency-aligned dry and wet mix">
+            <span class="knob-stage">
+              <input id="mix" data-param="mix" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="mixLabel mixValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="mixLabel">MIX</span>
+            <output id="mixValue">50%</output>
+          </label>
+        </div>
+      </article>
+
+      <article class="parameter-module module-level">
+        <header><span class="module-dot" aria-hidden="true"></span><strong>LEVEL</strong><output id="peakValue">-18.0</output></header>
+        <div class="level-content">
+          <label class="knob-control" data-control="outputGainDb" title="Final output level">
+            <span class="knob-stage">
+              <input id="outputGainDb" data-param="outputGainDb" type="range" min="0" max="1" step="0.0001" value="0.5" aria-labelledby="outputGainDbLabel outputGainDbValue">
+              <span class="knob-visual" aria-hidden="true"><span class="knob-pointer"></span></span>
+            </span>
+            <span class="parameter-label" id="outputGainDbLabel">OUTPUT</span>
+            <output id="outputGainDbValue">+0.0 dB</output>
+          </label>
+
+          <div class="mini-meters" aria-label="Input and output levels">
+            <div class="mini-meter">
+              <output id="inputPeak">-24.0</output>
+              <div class="meter-rail"><span id="inputMeter"></span><i></i></div>
+              <small>IN</small>
+            </div>
+            <div class="mini-meter">
+              <output id="outputPeak">-18.0</output>
+              <div class="meter-rail"><span id="outputMeter"></span><i></i></div>
+              <small>OUT</small>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+  <script src="app.js?v=7"></script>
+</body>
+</html>

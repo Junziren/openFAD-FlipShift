@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title">
+  <title id="title">openFAD Open Spectrum logo concept</title>
+  <g fill="#54DDB7">
+    <rect x="38" y="46" width="34" height="10"/>
+    <rect x="30" y="66" width="42" height="10"/>
+    <rect x="22" y="86" width="50" height="10"/>
+    <rect x="30" y="106" width="42" height="10"/>
+    <rect x="38" y="126" width="34" height="10"/>
+    <rect x="94" y="46" width="34" height="10"/>
+    <rect x="94" y="66" width="42" height="10"/>
+    <rect x="94" y="86" width="50" height="10"/>
+    <rect x="94" y="106" width="42" height="10"/>
+    <rect x="94" y="126" width="34" height="10"/>
+  </g>
+  <rect x="81" y="36" width="5" height="110" fill="#EFAD3E"/>
+  <g fill="none" stroke="#DBE3E3" stroke-width="14" stroke-linecap="square" stroke-linejoin="bevel">
+    <path d="M186 72H220L232 84V120L220 132H186L174 120V84Z"/>
+    <path d="M258 154V72H294L308 86V110L294 124H258M258 86H288L294 92V104L288 110H258"/>
+    <path d="M386 100H330V86L344 72H374L386 84V100H330V118L344 132H382"/>
+    <path d="M412 132V72M412 88L428 72H452L466 86V132"/>
+  </g>
+  <g fill="#54DDB7">
+    <path d="M510 42H582V60H530V84H574V102H530V140H510Z"/>
+    <path d="M594 140L622 42H646L674 140H654L648 116H620L614 140ZM624 98H644L634 60Z" fill-rule="evenodd"/>
+    <path d="M688 42H718C738 42 750 54 750 72V110C750 128 738 140 718 140H688ZM706 60V122H716C726 122 732 116 732 106V76C732 66 726 60 716 60Z" fill-rule="evenodd"/>
+  </g>
+  <rect x="622" y="104" width="24" height="5" fill="#EFAD3E"/>
+</svg>

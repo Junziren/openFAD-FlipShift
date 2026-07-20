@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title">
+  <title id="title">openFAD solid white logo</title>
+  <g fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="square" stroke-linejoin="bevel">
+    <path d="M56 70H92L104 82V122L92 134H56L44 122V82Z"/>
+    <path d="M132 156V70H172L188 86V110L172 126H132M132 84H166L174 92V104L166 112H132"/>
+    <path d="M278 102H218V84L232 70H264L278 84V102H218V120L232 134H274"/>
+    <path d="M308 134V70M308 88L326 70H348L364 86V134"/>
+  </g>
+  <g fill="#FFFFFF">
+    <rect x="387" y="54" width="4" height="72"/>
+    <rect x="416" y="38" width="18" height="104"/>
+    <rect x="416" y="38" width="36" height="18"/>
+    <rect x="460" y="38" width="32" height="18"/>
+    <rect x="416" y="82" width="25" height="18"/>
+    <rect x="449" y="82" width="31" height="18"/>
+    <path d="M505 142L537 38H557L589 142H569L561 114H533L525 142ZM538 96H556L547 64Z" fill-rule="evenodd"/>
+    <path d="M616 38H660C697 38 720 58 720 90C720 122 697 142 660 142H616ZM636 56V124H659C684 124 700 112 700 90C700 68 684 56 659 56Z" fill-rule="evenodd"/>
+    <rect x="535" y="102" width="24" height="6"/>
+  </g>
+</svg>

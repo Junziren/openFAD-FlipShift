@@ -40,18 +40,12 @@ if (-not [string]::IsNullOrWhiteSpace($VcvarsPath)) {
     if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 } else {
     cmake @configureArgs
+    if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE" }
     cmake --build $buildDir --config Release
+    if ($LASTEXITCODE -ne 0) { throw "CMake build failed with exit code $LASTEXITCODE" }
 }
 
-$testExe = Join-Path $buildDir 'FlipShiftDSPTests.exe'
-if (Test-Path -LiteralPath $testExe) {
-    & $testExe
-    if ($LASTEXITCODE -ne 0) { throw "FlipShiftDSPTests failed with exit code $LASTEXITCODE" }
-} else {
-    $candidate = Get-ChildItem -LiteralPath $buildDir -Recurse -Filter 'FlipShiftDSPTests*.exe' | Select-Object -First 1
-    if (-not $candidate) { throw 'FlipShiftDSPTests executable was not found after build.' }
-    & $candidate.FullName
-    if ($LASTEXITCODE -ne 0) { throw "FlipShiftDSPTests failed with exit code $LASTEXITCODE" }
-}
+ctest --test-dir $buildDir -C Release --output-on-failure
+if ($LASTEXITCODE -ne 0) { throw "CTest failed with exit code $LASTEXITCODE" }
 
-Write-Host 'openFAD FlipShift VST3 build and DSP tests completed.'
+Write-Host 'openFAD FlipShift VST3 build, DSP tests and native WebView integration tests completed.'

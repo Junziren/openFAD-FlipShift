@@ -1,0 +1,1291 @@
+{
+  "schemaVersion": 2,
+  "documentType": "openfad-webview-ui-specification",
+  "product": {
+    "brand": "openFAD",
+    "name": "FlipShift",
+    "displayName": "openFAD FlipShift",
+    "category": "spectral audio effect",
+    "vendor": "UnpureBloom",
+    "pluginFormats": [
+      "VST3",
+      "AUv3"
+    ]
+  },
+  "visualReference": {
+    "status": "confirmed",
+    "references": [
+      {
+        "role": "analyzer",
+        "url": "https://www.excite-audio.com/vision",
+        "product": "Excite Audio Vision 4X",
+        "use": "dark analysis surface, purple-blue-cyan-green energy scale, fine grid and restrained data labels"
+      },
+      {
+        "role": "controls",
+        "url": "https://www.excite-audio.com/lifeline/lifeline-console",
+        "product": "Excite Audio Lifeline Console",
+        "use": "warm-light hardware material, compact module grouping and restrained knob depth"
+      }
+    ],
+    "adaptationRule": "Visual references affect only styling and layout. Preserve the previous WebView analyzer logic, parameter semantics, event payloads and DSP topology. Control groups must not imply serial processing stages.",
+    "logoStatus": "disabled until a replacement identity is approved"
+  },
+  "implementation": {
+    "host": "JUCE 8.0.12 WebBrowserComponent",
+    "windowsBackend": "WebView2",
+    "appleBackend": "WKWebView",
+    "legacyInternetExplorerAllowed": false,
+    "frontend": "embedded HTML, CSS and JavaScript",
+    "runtimeFramework": "none",
+    "networkDependency": false,
+    "externalAssetDependency": false,
+    "analyzerRenderer": "Canvas2D",
+    "surfaceRole": "renderer-only plugin surface; never behaves as an in-plugin web browser",
+    "nativeSurfaceMarker": "the document root uses class native-surface and data-surface=native only when window.__JUCE__.backend exists",
+    "nativeBrowserPolicy": {
+      "textSelection": "disabled",
+      "contextMenu": "disabled",
+      "dragAndDrop": "dragstart, dragover and drop browser defaults are disabled",
+      "browserShortcuts": "F5, F12, refresh, location, source, find, print, save, zoom and browser-history shortcuts are prevented without blocking normal form or accessibility keys",
+      "overscroll": "document overscroll and tap highlight are suppressed"
+    },
+    "minimumViewport": {
+      "width": 320,
+      "height": 280
+    },
+    "defaultViewport": {
+      "width": 1000,
+      "height": 650
+    }
+  },
+  "designTokens": {
+    "colors": {
+      "ink": "#343638",
+      "inkStrong": "#202326",
+      "muted": "#777A7A",
+      "shell": "#D5D2CD",
+      "surface": "#EFEDE9",
+      "surfaceRaised": "#F5F3EF",
+      "surfaceInset": "#D8D6D1",
+      "analyzerBlack": "#030408",
+      "analyzerPurple": "#3D489B",
+      "analyzerCyan": "#18B8C6",
+      "analyzerGreen": "#77E0A6",
+      "analyzerWhite": "#EBFFE1",
+      "moduleAmber": "#D49A37",
+      "moduleCoral": "#D45D73",
+      "modulePlum": "#76505C",
+      "moduleTeal": "#4F8991",
+      "moduleGreen": "#4E9A68"
+    },
+    "semanticColors": {
+      "map": "moduleAmber",
+      "axis": "moduleCoral",
+      "morph": "modulePlum",
+      "blend": "moduleTeal",
+      "level": "moduleGreen",
+      "inactive": "muted",
+      "background": "shell",
+      "inputSignal": "analyzerPurple",
+      "outputSignal": "analyzerCyan",
+      "bypassActive": "moduleCoral",
+      "freezeActive": "modulePlum"
+    },
+    "typography": {
+      "family": [
+        "Inter",
+        "Segoe UI",
+        "Arial",
+        "sans-serif"
+      ],
+      "letterSpacing": 0,
+      "labels": {
+        "case": "uppercase",
+        "sizePx": 9,
+        "weight": 700
+      },
+      "values": {
+        "sizePx": 13,
+        "numericStyle": "tabular-nums"
+      }
+    },
+    "geometry": {
+      "cardRadiusMaximumPx": 5,
+      "nestedCardsAllowed": false,
+      "sectionStyle": "global toolbar, long analyzer and five parameter groups",
+      "controlHeightPx": 29,
+      "knobDiameterPx": {
+        "standard": 59,
+        "large": 70
+      }
+    },
+    "motion": {
+      "visualFrameRateHz": 15,
+      "analyzerFrameRateHz": 15,
+      "maximumDevicePixelRatio": 1.5,
+      "decorativeAnimationAllowed": false,
+      "interactionFeedback": {
+        "knobTrail": "one reusable Canvas follows the active knob and emits crisp module-coloured particles only for local pointer, keyboard or reset value changes",
+        "particlePoolMaximum": 24,
+        "frameRateMaximumHz": 30,
+        "lifetimeMilliseconds": "300 to 335",
+        "hostAutomation": "never emits particles for parameterState, automation playback or state restore",
+        "idleRule": "no particle rAF remains active after the fixed pool becomes empty"
+      },
+      "reducedMotion": "disable and clear knob particles; redraw analyzer only when state or analyzer data changes"
+    }
+  },
+  "pageStructure": [
+    {
+      "id": "consoleTopbar",
+      "type": "global-controls",
+      "children": ["productText", "mode", "modeEffectDescription", "quality", "analyzerView", "freeze", "bypass", "aboutOpen", "nativeBridgeStatus"]
+    },
+    {
+      "id": "compactViewTabs",
+      "type": "frontend-only responsive tablist",
+      "visibility": "only when viewport width is at most 820px and height is at most 540px",
+      "default": "analyze",
+      "children": ["compactAnalyzeTab", "compactControlTab"]
+    },
+    {
+      "id": "analyzer",
+      "type": "realtime-analyzer",
+      "children": ["waterfallToolbar", "waterfallChangeReadout", "waterfallEventCanvas", "waterfallCanvas", "glitchSelection", "pitchMapReadout", "spectrumCanvas", "pivotGuide", "destinationGuide"]
+    },
+    {
+      "id": "parameterStrip",
+      "type": "parameter-groups",
+      "children": ["mapModule", "axisOrPitchMapSlot", "morphModule", "blendModule", "levelModule"],
+      "conditionalSlot": "axisModule is replaced in place by pitchMapModule only while mode value 23 is selected; the strip always retains five module columns"
+    }
+  ],
+  "modules": [
+    {
+      "id": "mapModule",
+      "label": "MAP",
+      "accent": "moduleAmber",
+      "parameters": ["shiftHz", "scale"]
+    },
+    {
+      "id": "axisModule",
+      "label": "AXIS",
+      "accent": "moduleCoral",
+      "parameters": ["pivotHz", "widthQ"],
+      "visibility": "hidden only while pitchMapModule occupies the same five-column slot"
+    },
+    {
+      "id": "pitchMapModule",
+      "label": "PITCH MAP",
+      "accent": "moduleGreen",
+      "parameters": ["pitchRoot", "pitchScale"],
+      "visibility": "only when mode value 23 (Pitch Map) is selected"
+    },
+    {
+      "id": "morphModule",
+      "label": "MORPH",
+      "accent": "modulePlum",
+      "parameters": ["amount"]
+    },
+    {
+      "id": "blendModule",
+      "label": "BLEND",
+      "accent": "moduleTeal",
+      "parameters": ["mix"]
+    },
+    {
+      "id": "levelModule",
+      "label": "LEVEL",
+      "accent": "moduleGreen",
+      "parameters": ["outputGainDb"],
+      "readouts": ["inputMeter", "outputMeter", "inputPeak", "outputPeak"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "mode",
+      "uiId": "mode",
+      "type": "select",
+      "label": "MODE",
+      "default": 8,
+      "automatable": true,
+      "choicesSource": "modes",
+      "effectHelp": {
+        "descriptionSource": "modes[].description",
+        "descriptionElement": "modeEffectDescription",
+        "presentation": "a compact transient tooltip anchored below PROCESS appears on hover or focus; it must not resize the top bar",
+        "optionMetadata": ["title", "data-description"],
+        "ariaDescribedBy": "modeEffectDescription",
+        "updateTriggers": ["initial render", "pointer selection", "keyboard selection", "parameterState", "host automation", "state restore"],
+        "defaultControlTooltips": {
+          "shiftHz": "Additive frequency offset used by this spectral transform.",
+          "scale": "Frequency ratio around the selected pivot or detected peak.",
+          "pivotHz": "Frequency reference used as a centre, anchor or fundamental.",
+          "amount": "Depth of the selected spectral transformation.",
+          "widthQ": "Bandwidth, radius or selectivity of the transformation."
+        },
+        "controlTooltipRule": "each mode-control wrapper uses the matching modes[].tooltipOverrides entry when present and otherwise uses the default control tooltip; inactive controls remain visible and disabled"
+      }
+    },
+    {
+      "id": "quality",
+      "uiId": "quality",
+      "type": "select",
+      "label": "QUALITY",
+      "default": 1,
+      "automatable": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "LOW",
+          "fftSize": 512
+        },
+        {
+          "value": 1,
+          "label": "NORMAL",
+          "fftSize": 1024
+        },
+        {
+          "value": 2,
+          "label": "HIGH",
+          "fftSize": 2048
+        }
+      ]
+    },
+    {
+      "id": "analyzerView",
+      "uiId": "analyzerView",
+      "type": "segmented-control",
+      "label": "DISPLAY",
+      "default": 2,
+      "automatable": false,
+      "presentation": "two layer toggles labelled WF and FFT; the last visible layer cannot be disabled",
+      "choices": [
+        {
+          "value": 0,
+          "label": "SPECTRUM"
+        },
+        {
+          "value": 1,
+          "label": "WATERFALL"
+        },
+        {
+          "value": 2,
+          "label": "BOTH"
+        }
+      ]
+    },
+    {
+      "id": "freeze",
+      "uiId": "freeze",
+      "type": "toggle",
+      "label": "FREEZE",
+      "default": false,
+      "automatable": false,
+      "activeColor": "mint"
+    },
+    {
+      "id": "bypass",
+      "uiId": "bypass",
+      "type": "toggle",
+      "label": "BYPASS",
+      "default": false,
+      "automatable": true,
+      "hostBypassParameter": true,
+      "activeColor": "amber"
+    },
+    {
+      "id": "shiftHz",
+      "type": "slider",
+      "label": "SHIFT",
+      "default": 0.0,
+      "unit": "Hz",
+      "minimum": -5000.0,
+      "maximum": 5000.0,
+      "interval": 0.01,
+      "mapping": {
+        "type": "symmetric-skew",
+        "skew": 0.45,
+        "centre": 0.0
+      },
+      "format": "signed integer plus Hz",
+      "automatable": true
+    },
+    {
+      "id": "scale",
+      "type": "slider",
+      "label": "SCALE",
+      "default": 1.0,
+      "unit": "x",
+      "minimum": 0.25,
+      "maximum": 4.0,
+      "interval": 0.001,
+      "mapping": {
+        "type": "skew-for-centre",
+        "centre": 1.0
+      },
+      "format": "two decimals plus x",
+      "automatable": true
+    },
+    {
+      "id": "pivotHz",
+      "type": "slider",
+      "label": "PIVOT",
+      "default": 1000.0,
+      "unit": "Hz",
+      "minimum": 20.0,
+      "maximum": 20000.0,
+      "interval": 0.01,
+      "mapping": {
+        "type": "skew-for-centre",
+        "centre": 1000.0
+      },
+      "format": "frequency with k suffix above 1000 Hz",
+      "automatable": true
+    },
+    {
+      "id": "amount",
+      "type": "slider",
+      "label": "AMOUNT",
+      "default": 0.5,
+      "unit": "percent",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "interval": 0.0001,
+      "mapping": {
+        "type": "linear"
+      },
+      "format": "integer percent",
+      "automatable": true
+    },
+    {
+      "id": "widthQ",
+      "type": "slider",
+      "label": "WIDTH/Q",
+      "default": 1.0,
+      "unit": "ratio",
+      "minimum": 0.05,
+      "maximum": 8.0,
+      "interval": 0.001,
+      "mapping": {
+        "type": "skew-for-centre",
+        "centre": 1.0
+      },
+      "format": "two decimals",
+      "automatable": true
+    },
+    {
+      "id": "mix",
+      "type": "slider",
+      "label": "MIX",
+      "default": 0.5,
+      "unit": "percent",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "interval": 0.0001,
+      "mapping": {
+        "type": "linear"
+      },
+      "format": "integer percent",
+      "automatable": true,
+      "alwaysEnabled": true
+    },
+    {
+      "id": "outputGainDb",
+      "type": "slider",
+      "label": "OUTPUT",
+      "default": 0.0,
+      "unit": "dB",
+      "minimum": -24.0,
+      "maximum": 12.0,
+      "interval": 0.01,
+      "mapping": {
+        "type": "skew-for-centre",
+        "centre": 0.0
+      },
+      "format": "signed one decimal plus dB",
+      "automatable": true,
+      "alwaysEnabled": true
+    },
+    {
+      "id": "pitchRoot",
+      "uiId": "pitchRoot",
+      "type": "select",
+      "label": "ROOT",
+      "default": 0,
+      "automatable": true,
+      "visibleForModes": [23],
+      "choices": [
+        { "value": 0, "label": "C" },
+        { "value": 1, "label": "C#" },
+        { "value": 2, "label": "D" },
+        { "value": 3, "label": "D#" },
+        { "value": 4, "label": "E" },
+        { "value": 5, "label": "F" },
+        { "value": 6, "label": "F#" },
+        { "value": 7, "label": "G" },
+        { "value": 8, "label": "G#" },
+        { "value": 9, "label": "A" },
+        { "value": 10, "label": "A#" },
+        { "value": 11, "label": "B" }
+      ]
+    },
+    {
+      "id": "pitchScale",
+      "uiId": "pitchScale",
+      "type": "select",
+      "label": "SCALE",
+      "default": 0,
+      "automatable": true,
+      "visibleForModes": [23],
+      "choices": [
+        { "value": 0, "label": "MAJOR" },
+        { "value": 1, "label": "MINOR" }
+      ]
+    }
+  ],
+  "modes": [
+    {
+      "value": 0,
+      "id": "off",
+      "label": "Neutral",
+      "description": "Leaves the spectral frame unchanged; Freeze and the global Mix path still apply.",
+      "enabledControls": []
+    },
+    {
+      "value": 1,
+      "id": "detune",
+      "label": "Pivot Bend",
+      "description": "Expands or contracts frequency distance around Center by a limited ratio; Amount also blends the transformed spectrum.",
+      "enabledControls": [
+        "shiftHz",
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "shiftHz": "BEND",
+        "pivotHz": "CENTER"
+      },
+      "displayUnitOverrides": {
+        "shiftHz": "%"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Maximum pivot-centred expansion or contraction; positive values expand and negative values contract.",
+        "pivotHz": "Frequency that remains fixed while surrounding frequencies bend.",
+        "amount": "Increase the bend ratio and blend toward the bent spectrum."
+      }
+    },
+    {
+      "value": 2,
+      "id": "smear",
+      "label": "Magnitude Diffusion",
+      "description": "Averages neighbouring bin magnitudes, smooths them over time, and retains each bin's current phase.",
+      "enabledControls": [
+        "amount",
+        "widthQ"
+      ],
+      "labelOverrides": {
+        "amount": "DIFFUSION",
+        "widthQ": "RADIUS"
+      },
+      "tooltipOverrides": {
+        "amount": "Blend toward the diffused spectrum and increase its averaging range.",
+        "widthQ": "Radius of neighbouring bins included in the magnitude average."
+      }
+    },
+    {
+      "value": 3,
+      "id": "spread",
+      "label": "Stereo Translate",
+      "description": "Translates the left and right spectra by equal Hz offsets in opposite directions; mono input uses one translation direction.",
+      "enabledControls": [
+        "shiftHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "shiftHz": "OFFSET"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Maximum opposite Hz translation applied to the two channels."
+      }
+    },
+    {
+      "value": 4,
+      "id": "harmonics",
+      "label": "Harmonic Sieve",
+      "description": "Retains bands near integer multiples of Fundamental and attenuates the gaps without boosting them.",
+      "enabledControls": [
+        "pivotHz",
+        "amount",
+        "widthQ"
+      ],
+      "labelOverrides": {
+        "pivotHz": "FUNDAMENTAL",
+        "amount": "REJECTION",
+        "widthQ": "BAND WIDTH"
+      },
+      "tooltipOverrides": {
+        "pivotHz": "Fundamental frequency used to construct the harmonic grid.",
+        "amount": "Increase attenuation between the retained harmonic bands.",
+        "widthQ": "Width of each band retained around the harmonic grid."
+      }
+    },
+    {
+      "value": 5,
+      "id": "subharm",
+      "label": "Spectral Divider",
+      "description": "Reads stepped 1x to 4x source frequencies, dividing spectral content downward by integer ratios.",
+      "enabledControls": [
+        "amount"
+      ],
+      "labelOverrides": {
+        "amount": "DIVISOR"
+      },
+      "tooltipOverrides": {
+        "amount": "Select the integer frequency divisor and blend it with the original spectrum."
+      }
+    },
+    {
+      "value": 6,
+      "id": "gate",
+      "label": "Peak-Relative Gate",
+      "description": "Derives a threshold from the strongest spectral bin and attenuates bins below it.",
+      "enabledControls": [
+        "amount"
+      ],
+      "labelOverrides": {
+        "amount": "THRESHOLD"
+      },
+      "tooltipOverrides": {
+        "amount": "Raise both the spectral gate threshold and the reduction below it."
+      }
+    },
+    {
+      "value": 7,
+      "id": "robotize",
+      "label": "Phase Reset",
+      "description": "Sets the transformed branch to zero phase, then blends it with the original spectrum.",
+      "enabledControls": [
+        "amount"
+      ],
+      "labelOverrides": {
+        "amount": "RESET"
+      },
+      "tooltipOverrides": {
+        "amount": "Blend toward the zero-phase spectrum."
+      }
+    },
+    {
+      "value": 8,
+      "id": "shift",
+      "label": "Hz Translation",
+      "description": "Adds the same signed Hz offset to every frequency component, bending harmonic ratios.",
+      "enabledControls": [
+        "shiftHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "shiftHz": "OFFSET Hz"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Frequency added to or subtracted from every spectral bin."
+      }
+    },
+    {
+      "value": 9,
+      "id": "mirror",
+      "label": "Pivot Reflection",
+      "description": "Reflects frequency order around Reflect Axis; larger Map Scale values compress the audible output toward the axis.",
+      "enabledControls": [
+        "scale",
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "scale": "MAP SCALE",
+        "pivotHz": "REFLECT AXIS"
+      },
+      "tooltipOverrides": {
+        "scale": "Source-map slope; larger values compress output distances toward Reflect Axis.",
+        "pivotHz": "Frequency axis around which the spectrum is reversed."
+      }
+    },
+    {
+      "value": 10,
+      "id": "peakFollow",
+      "label": "Peak Repel",
+      "description": "Detects the strongest bin and moves the full spectrum farther from Anchor by the peak-to-anchor offset.",
+      "enabledControls": [
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "pivotHz": "ANCHOR",
+        "amount": "REPEL"
+      },
+      "tooltipOverrides": {
+        "pivotHz": "Reference frequency that the detected dominant peak moves away from.",
+        "amount": "Increase the peak-relative displacement and blend toward the repelled spectrum."
+      }
+    },
+    {
+      "value": 11,
+      "id": "peakOctUp",
+      "label": "Peak Stretch 2x",
+      "description": "Keeps the detected peak fixed and doubles every component's linear Hz distance from it.",
+      "enabledControls": [
+        "amount"
+      ],
+      "labelOverrides": {
+        "amount": "BLEND"
+      },
+      "tooltipOverrides": {
+        "amount": "Blend toward the fixed 2x peak-relative stretch."
+      }
+    },
+    {
+      "value": 12,
+      "id": "peakOctDown",
+      "label": "Peak Compress 2:1",
+      "description": "Keeps the detected peak fixed and halves every component's linear Hz distance from it.",
+      "enabledControls": [
+        "amount"
+      ],
+      "labelOverrides": {
+        "amount": "BLEND"
+      },
+      "tooltipOverrides": {
+        "amount": "Blend toward the fixed 2:1 peak-relative compression."
+      }
+    },
+    {
+      "value": 13,
+      "id": "peakHmxUp",
+      "label": "Peak Stretch",
+      "description": "Keeps the strongest peak fixed and expands linear Hz distances by the Span control plus one.",
+      "enabledControls": [
+        "scale",
+        "amount"
+      ],
+      "labelOverrides": {
+        "scale": "SPAN",
+        "amount": "BLEND"
+      },
+      "tooltipOverrides": {
+        "scale": "Expansion control; the applied peak-relative factor is Span plus one."
+      }
+    },
+    {
+      "value": 14,
+      "id": "peakHmxDown",
+      "label": "Peak Compress",
+      "description": "Keeps the strongest peak fixed and divides linear Hz distances by the Span control plus one.",
+      "enabledControls": [
+        "scale",
+        "amount"
+      ],
+      "labelOverrides": {
+        "scale": "SPAN",
+        "amount": "BLEND"
+      },
+      "tooltipOverrides": {
+        "scale": "Compression control; peak-relative distances are divided by Span plus one."
+      }
+    },
+    {
+      "value": 15,
+      "id": "harmSweep",
+      "label": "Harmonic Scan",
+      "description": "Retains bands near integer multiples of a fundamental transposed by Scan in cents.",
+      "enabledControls": [
+        "shiftHz",
+        "pivotHz",
+        "amount",
+        "widthQ"
+      ],
+      "labelOverrides": {
+        "shiftHz": "SCAN",
+        "pivotHz": "FUNDAMENTAL",
+        "widthQ": "BAND WIDTH"
+      },
+      "displayUnitOverrides": {
+        "shiftHz": "ct"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Harmonic-grid offset in cents; small values provide fine movement.",
+        "pivotHz": "Base fundamental frequency for the moving harmonic grid.",
+        "widthQ": "Width of each retained band in the harmonic grid."
+      }
+    },
+    {
+      "value": 16,
+      "id": "shepard",
+      "label": "Octave Stack Tight",
+      "description": "Sums seven octave-related resamplings through a tight octave-periodic window.",
+      "enabledControls": [
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "pivotHz": "OCTAVE ANCHOR",
+        "amount": "OCTAVE POSITION"
+      },
+      "tooltipOverrides": {
+        "pivotHz": "Frequency anchor for the repeating octave window.",
+        "amount": "Move the seven-layer stack through one octave of resampling position."
+      }
+    },
+    {
+      "value": 17,
+      "id": "shepardWide",
+      "label": "Octave Stack Wide",
+      "description": "Sums seven octave-related resamplings through a broad octave-periodic window.",
+      "enabledControls": [
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "pivotHz": "OCTAVE ANCHOR",
+        "amount": "OCTAVE POSITION"
+      },
+      "tooltipOverrides": {
+        "pivotHz": "Frequency anchor for the repeating octave window.",
+        "amount": "Move the seven-layer stack through one octave of resampling position."
+      }
+    },
+    {
+      "value": 18,
+      "id": "comb",
+      "label": "Magnitude Comb",
+      "description": "Applies a cosine comb to spectral magnitudes. Tooth spacing is the absolute Spacing value plus ten percent of Base.",
+      "enabledControls": [
+        "shiftHz",
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "shiftHz": "SPACING",
+        "pivotHz": "BASE",
+        "amount": "MASK DEPTH"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Unsigned spacing contribution; positive and negative values produce the same spacing.",
+        "pivotHz": "Base frequency contributing ten percent of the mask spacing."
+      }
+    },
+    {
+      "value": 19,
+      "id": "pitchBlend",
+      "label": "Ratio Crossfade",
+      "description": "Crossfades complex bins between the original and pivot-scaled spectra without phase tracking.",
+      "enabledControls": [
+        "scale",
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "scale": "RATIO",
+        "pivotHz": "PIVOT",
+        "amount": "CROSSFADE"
+      },
+      "tooltipOverrides": {
+        "amount": "Crossfade the complex spectrum; intermediate values can produce phase cancellation."
+      }
+    },
+    {
+      "value": 20,
+      "id": "pitchShift",
+      "label": "Phase-Tracked Scale",
+      "description": "Rescales frequency distance around Pivot and applies phase tracking to remapped bins.",
+      "enabledControls": [
+        "scale",
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "scale": "SCALE",
+        "pivotHz": "PIVOT",
+        "amount": "BLEND"
+      },
+      "tooltipOverrides": {
+        "scale": "Frequency-distance scale around Pivot; this is not a whole-spectrum pitch ratio."
+      }
+    },
+    {
+      "value": 21,
+      "id": "phaseTwist",
+      "label": "Phase Ripple",
+      "description": "Applies sinusoidal frequency-dependent phase rotation; partial blending can also alter magnitude.",
+      "enabledControls": [
+        "pivotHz",
+        "amount"
+      ],
+      "labelOverrides": {
+        "pivotHz": "RIPPLE SCALE",
+        "amount": "ROTATION"
+      },
+      "tooltipOverrides": {
+        "pivotHz": "Frequency scale of the sinusoidal phase ripple; one full cycle spans about 2 pi times this value.",
+        "amount": "Increase phase rotation and blend toward the rotated spectrum."
+      }
+    },
+    {
+      "value": 22,
+      "id": "glitch",
+      "label": "Band Glitch",
+      "description": "Randomly offsets spectral content only inside the band selected by Band Center and Band Q; Density sets event probability and wet depth.",
+      "enabledControls": [
+        "shiftHz",
+        "pivotHz",
+        "amount",
+        "widthQ"
+      ],
+      "labelOverrides": {
+        "shiftHz": "OFFSET",
+        "pivotHz": "BAND CENTER",
+        "amount": "DENSITY",
+        "widthQ": "BAND Q"
+      },
+      "tooltipOverrides": {
+        "shiftHz": "Signed source-bin offset applied when a selected spectral region glitches.",
+        "pivotHz": "Centre frequency of the spectral band eligible for glitch processing.",
+        "amount": "Probability and wet depth of random glitch events inside the selected band.",
+        "widthQ": "Quality factor for the selected band; higher values make the band narrower."
+      },
+      "analyzerOverlay": "glitchSelection"
+    },
+    {
+      "value": 23,
+      "id": "pitchMap",
+      "label": "Pitch Map",
+      "description": "Quantizes spectral energy toward the nearest pitch classes in the selected major or minor key. Map Depth blends the original and quantized spectra.",
+      "enabledControls": [
+        "amount",
+        "pitchRoot",
+        "pitchScale"
+      ],
+      "labelOverrides": {
+        "amount": "MAP DEPTH"
+      },
+      "tooltipOverrides": {
+        "amount": "Blend between the original spectrum and the scale-quantized pitch map."
+      },
+      "analyzerOverlay": "pitchMapReadout"
+    }
+  ],
+  "analyzer": {
+    "inputData": "input spectrum in dB",
+    "outputData": "output spectrum in dB",
+    "minimumDb": -96,
+    "maximumDb": 6,
+    "transferPointCount": 192,
+    "transferRateHz": 15,
+    "frequencyScale": "logarithmic",
+    "browserPreview": {
+      "required": true,
+      "generator": "deterministic harmonic spectrum with fixed-frequency temporal texture and parameter-driven output transform",
+      "updateRateHz": 15,
+      "freezeBehaviour": "stops preview spectrum and history updates",
+      "historyBackfill": "replays the same preview generator at past timestamps so the prefilled history joins live columns without a moving boundary",
+      "artifactRule": "preview animation must not synthesize regular moving diagonal bands or dark-blue slanted stripes; temporal motion may change energy at fixed frequencies but must not shift the whole spectrum across frequency"
+    },
+    "views": [
+      {
+        "value": 0,
+        "name": "Spectrum",
+        "layout": "spectrumCanvas fills the analyzer"
+      },
+      {
+        "value": 1,
+        "name": "Waterfall",
+        "layout": "waterfallCanvas fills the analyzer"
+      },
+      {
+        "value": 2,
+        "name": "Both",
+        "layout": "uses the selected local STACK, OVERLAY or SPLIT arrangement without changing analyzerView value 2"
+      }
+    ],
+    "waterfall": {
+      "canvas": "waterfallCanvas",
+      "timeAxis": "left to right; newest frame enters at the right edge",
+      "frequencyAxis": "vertical; low frequencies at the bottom and high frequencies at the top",
+      "historyImplementation": "4096-column by 192-bin quantised ring buffer is the source of truth; live updates use incremental canvas shifts while resize, layout and LOOK changes redraw from stored history",
+      "visualReference": "VISION is the default Vision 4X inspired profile; PULSE, PHOSPHOR and XRAY provide alternate local renderings of the same stored analyzer energy",
+      "dataContract": "uses analyzerFrame.output without changing transfer rate, point count or DSP data",
+      "sampling": "nearest transferred analyzer bin to avoid a second interpolation blur pass",
+      "heatScale": "each LOOK maps decoded stored dB values through its own floor, ceiling, gamma and ordered colour stops while preserving crisp nearest-neighbour pixels",
+      "pixelOwnership": "waterfallCanvas pixels encode analyzer energy only; parameter feedback, event markers and readout decoration must never be blended, filled or composited into the heat canvas",
+      "modeOverlays": [
+        {
+          "id": "glitchSelection",
+          "visibleForModes": [22],
+          "role": "restrained translucent selected-band guide rendered above, never into, waterfallCanvas",
+          "sources": ["pivotHz", "widthQ", "quality", "sampleRate"],
+          "formula": "binWidth = Nyquist / (FFTSize / 2); bandwidthHz = clamp(pivotHz / clamp(widthQ, 0.05, 8), 4 * binWidth, Nyquist); lowHz = max(binWidth, pivotHz - bandwidthHz / 2); highHz = min(Nyquist, pivotHz + bandwidthHz / 2)",
+          "dataIsolation": "does not seed, recolour, blur or otherwise mutate analyzer history or analyzerFrame data"
+        },
+        {
+          "id": "pitchMapReadout",
+          "visibleForModes": [23],
+          "role": "compact text readout of the current pitchRoot and pitchScale",
+          "sources": ["pitchRoot", "pitchScale"],
+          "dataIsolation": "does not draw pitch energy or synthesize analyzer data"
+        }
+      ],
+      "visualProfileContract": {
+        "scope": "frontend-only local rendering preference",
+        "default": "vision",
+        "switchBehaviour": "recolour the complete visible waterfall from the existing quantised dB ring history",
+        "allowedRedraw": "a LOOK change may increment the full heat-canvas render count",
+        "historyMutation": "LOOK changes must not seed, append, clear or reorder history and must preserve history head, history count, advance count and marker positions",
+        "processingIsolation": "LOOK changes do not affect DSP, audio, latency, analyzerFrame payloads, the 15 Hz transfer, scroll speed, analyzer layout or the host parameter list",
+        "feedbackIsolation": "LOOK changes do not emit parameterGesture events and do not create a waterfall parameter marker or toolbar parameter readout",
+        "overlayRule": "grid accents and the newest-edge cursor may follow the selected LOOK, while guides and the dedicated parameter event track remain separate from heat-map pixels",
+        "freezeRule": "LOOK may recolour stored history while HOLD is active but must not advance the timeline"
+      },
+      "visualProfiles": [
+        {
+          "id": "vision",
+          "label": "VISION",
+          "description": "High-contrast violet, cyan and mint map with clear near-white peak cores.",
+          "floorDb": -90,
+          "ceilingDb": 0,
+          "gamma": 1.25,
+          "gridAccent": "rgba(145, 160, 178, 0.13)",
+          "newestEdgeAccent": "rgba(205, 245, 232, 0.25)",
+          "stops": [
+            [0.0, [2, 3, 8]],
+            [0.16, [13, 11, 43]],
+            [0.34, [57, 44, 130]],
+            [0.52, [49, 95, 157]],
+            [0.68, [18, 179, 194]],
+            [0.8, [114, 229, 183]],
+            [0.88, [236, 255, 228]],
+            [1.0, [255, 246, 231]]
+          ]
+        },
+        {
+          "id": "pulse",
+          "label": "PULSE",
+          "description": "Plum, coral and amber thermal map tuned for transients and harmonic peaks.",
+          "floorDb": -88,
+          "ceilingDb": 0,
+          "gamma": 1.15,
+          "gridAccent": "rgba(220, 142, 116, 0.11)",
+          "newestEdgeAccent": "rgba(244, 166, 65, 0.38)",
+          "stops": [
+            [0.0, [4, 3, 7]],
+            [0.16, [26, 11, 44]],
+            [0.34, [91, 22, 79]],
+            [0.52, [167, 44, 99]],
+            [0.68, [232, 91, 82]],
+            [0.8, [244, 166, 65]],
+            [0.9, [255, 230, 163]],
+            [1.0, [255, 251, 234]]
+          ]
+        },
+        {
+          "id": "phosphor",
+          "label": "PHOSPHOR",
+          "description": "Cyan and green phosphor map that keeps sustained partials and sidebands readable.",
+          "floorDb": -90,
+          "ceilingDb": -3,
+          "gamma": 1.2,
+          "gridAccent": "rgba(120, 203, 161, 0.11)",
+          "newestEdgeAccent": "rgba(168, 232, 114, 0.34)",
+          "stops": [
+            [0.0, [2, 6, 6]],
+            [0.18, [6, 35, 40]],
+            [0.36, [10, 83, 96]],
+            [0.54, [15, 143, 131]],
+            [0.7, [63, 203, 128]],
+            [0.82, [168, 232, 114]],
+            [0.91, [235, 255, 208]],
+            [1.0, [255, 255, 255]]
+          ]
+        },
+        {
+          "id": "xray",
+          "label": "XRAY",
+          "description": "Colour-neutral diagnostic map for comparing noise floor, shape and peak intensity.",
+          "floorDb": -84,
+          "ceilingDb": -3,
+          "gamma": 0.95,
+          "gridAccent": "rgba(176, 199, 209, 0.14)",
+          "newestEdgeAccent": "rgba(237, 247, 245, 0.36)",
+          "stops": [
+            [0.0, [2, 4, 5]],
+            [0.18, [17, 24, 32]],
+            [0.36, [38, 55, 70]],
+            [0.54, [75, 105, 123]],
+            [0.7, [126, 159, 170]],
+            [0.84, [189, 212, 216]],
+            [0.93, [237, 247, 245]],
+            [1.0, [255, 255, 255]]
+          ]
+        }
+      ],
+      "localControls": [
+        {
+          "id": "waterfallRate",
+          "type": "select",
+          "label": "SPEED",
+          "choices": ["1x", "2x", "4x", "8x"],
+          "columnsPerSecond": [15, 30, 60, 120],
+          "default": "4x",
+          "hostParameter": false,
+          "effect": "rAF advances sample-and-hold visual slices independently from the native 15 Hz analyzerFrame transfer; FFT and meters remain native-rate"
+        },
+        {
+          "id": "waterfallVisual",
+          "type": "select",
+          "label": "LOOK",
+          "choicesSource": "visualProfiles",
+          "choices": ["VISION", "PULSE", "PHOSPHOR", "XRAY"],
+          "default": "vision",
+          "hostParameter": false,
+          "persistence": "editor-local; resets to VISION when a new WebView document is created",
+          "effect": "recolours existing stored dB history and profile-specific grid accents without changing analyzer data or history state"
+        },
+        {
+          "id": "analyzerLayout",
+          "type": "select",
+          "label": "LAYOUT",
+          "choices": ["STACK", "OVERLAY", "SPLIT"],
+          "default": "STACK",
+          "hostParameter": false,
+          "effect": "STACK is the existing 75/25 vertical layout; OVERLAY uses a vertically aligned transparent FFT amplitude band; SPLIT is side-by-side above 620px and a 58/42 vertical split below it"
+        }
+      ],
+      "parameterFeedback": {
+        "historyRule": "parameter changes never rewrite previous waterfall slices or directly generate heat-map energy; only subsequent real analyzer output may change future slices",
+        "localControlRule": "waterfallRate, waterfallVisual and analyzerLayout are local UI controls and never create parameter markers, parameter readouts or host automation gestures",
+        "eventTrackCanvas": "waterfallEventCanvas",
+        "eventMarker": "a module-coloured position marker is rendered only in the dedicated event track and stays time-aligned with the waterfall history",
+        "separationRule": "the event track is outside the heat-map data stage; its markers must not overlap, tint, mask, recolour or trigger a redraw of waterfallCanvas pixels",
+        "liveReadout": "a short-lived label in the waterfall toolbar shows the changed parameter name and formatted value without covering the analyzer",
+        "initialStateRule": "the first native parameterState snapshot does not create event markers"
+      }
+    },
+    "spectrum": {
+      "canvas": "spectrumCanvas",
+      "priority": "secondary",
+      "inputColor": "analyzerPurple",
+      "outputColor": "analyzerCyan"
+    },
+    "guides": [
+      {
+        "id": "pivotGuide",
+        "color": "moduleCoral",
+        "sourceParameter": "pivotHz"
+      },
+      {
+        "id": "destinationGuide",
+        "color": "moduleAmber",
+        "visibleForModes": [
+          1,
+          3,
+          8
+        ],
+        "formula": "clamp(pivotHz + shiftHz * amount, 0, sampleRate / 2)"
+      }
+    ]
+  },
+  "about": {
+    "trigger": "aboutOpen",
+    "dialog": "aboutDialog",
+    "title": "openFAD FlipShift",
+    "project": {
+      "name": "openFAD",
+      "url": "https://fadrecords.com/openfad/",
+      "description": "Chinese-first open-source music visual toolset initiated by FAD Records"
+    },
+    "developer": {
+      "name": "UnpureBloom",
+      "url": "https://space.bilibili.com/227573145"
+    },
+    "source": "https://github.com/Junziren/openFAD-FlipShift",
+    "license": {
+      "status": "notYetDeclared",
+      "shortName": "NOT YET DECLARED",
+      "scope": "openFAD FlipShift repository",
+      "notice": "The repository has no license file, so viewing its source does not grant permission to copy, modify or redistribute it.",
+      "upstream": {
+        "scope": "openFAD main project",
+        "name": "GNU Affero General Public License v3.0",
+        "shortName": "GNU AGPLv3",
+        "url": "https://github.com/willren5/openFAD/blob/main/LICENSE"
+      },
+      "frameworkDependency": {
+        "name": "JUCE",
+        "version": "8.0.12",
+        "status": "routeNotYetDeclared",
+        "availableRoutes": ["GNU AGPLv3", "commercial JUCE licence"],
+        "notice": "The selected JUCE licensing route and required third-party notices must be documented before release.",
+        "documentation": "LICENSING.md"
+      }
+    },
+    "features": [
+      "24 spectral transformation modes including Band Glitch and scale-aware Pitch Map",
+      "long waterfall with four LOOK profiles and adjustable scroll speed",
+      "input/output FFT, frequency guides, meters, freeze and quality control",
+      "VST3/WebView2 and AUv3/WKWebView build paths with host automation and state recall"
+    ],
+    "externalLinkPolicy": "browser preview uses rel=noopener target=_blank; native builds emit openExternal and C++ launches only exact allow-listed URLs",
+    "focusPolicy": "opening moves focus into the modal, Tab is trapped, Escape or backdrop closes it and focus returns to the About trigger"
+  },
+  "nativeBridge": {
+    "frontendToCpp": [
+      {
+        "event": "uiReady",
+        "payload": {}
+      },
+      {
+        "event": "parameterGesture",
+        "payload": {
+          "id": "parameter ID",
+          "phase": "begin | value | end",
+          "value": "raw parameter value; present only for value phase"
+        }
+      },
+      {
+        "event": "openExternal",
+        "payload": {
+          "url": "one exact allow-listed About URL"
+        }
+      }
+    ],
+    "cppToFrontend": [
+      {
+        "event": "parameterState",
+        "payload": {
+          "values": "object keyed by parameter ID",
+          "sampleRate": "number"
+        }
+      },
+      {
+        "event": "analyzerFrame",
+        "payload": {
+          "input": "array of 192 dB values",
+          "output": "array of 192 dB values"
+        }
+      },
+      {
+        "event": "surfaceVisibility",
+        "payload": {
+          "visible": "whether the native plugin editor is currently showing"
+        }
+      }
+    ],
+    "automationGestureRequirement": "Sliders, selects and toggles must emit begin before changes and end when the interaction completes.",
+    "frontendLocalState": {
+      "compactView": {
+        "choices": ["analyze", "control"],
+        "default": "analyze",
+        "hostParameter": false,
+        "bridgeEvents": "none",
+        "historyRule": "switching tabs never appends, clears, seeds, reorders or recolours waterfall history; incoming analyzer time may continue advancing independently while CONTROL is visible",
+        "renderRule": "CONTROL suppresses offscreen canvas painting; returning to ANALYZE redraws the current stored history without changing its head, count, advance count or markers"
+      }
+    }
+  },
+  "responsiveRules": [
+    {
+      "minimumWidth": 821,
+      "layout": "global toolbar, long analyzer, five parameter groups in one bottom row",
+      "pageOverflow": "document root fixed to the viewport; no page scroll"
+    },
+    {
+      "maximumWidth": 820,
+      "minimumWidth": 621,
+      "topbar": "product text plus a compact global-control grid",
+      "layout": "long analyzer followed by a three-column parameter grid",
+      "pageOverflow": "document root fixed; only parameterStrip may scroll vertically"
+    },
+    {
+      "maximumWidth": 620,
+      "topbar": "product text row plus a two-column global-control grid; mode spans full width",
+      "layout": "long analyzer followed by a two-column parameter grid; LEVEL spans both columns",
+      "minimumModuleHeightPx": 168,
+      "pageOverflow": "document root fixed with no horizontal or page scroll; only parameterStrip may scroll vertically"
+    },
+    {
+      "maximumWidth": 820,
+      "maximumHeight": 540,
+      "topbar": "height-compressed native control surface",
+      "layout": "ANALYZE and CONTROL share one fixed workspace selected by compactViewTabs; default ANALYZE",
+      "pageOverflow": "document root fixed; CONTROL uses parameterStrip internal scrolling",
+      "isolation": "tab selection is frontend-only and never emits parameterGesture, changes a host parameter or mutates waterfall history"
+    }
+  ],
+  "states": {
+    "loading": "warm shell background until embedded index resource loads",
+    "nativeConnected": "status reads NATIVE and indicator uses moduleGreen",
+    "nativeSurface": "document root is marked native-surface, text selection and browser chrome behaviours are suppressed while plugin controls retain normal keyboard operation",
+    "nativeSurfaceHidden": "C++ surfaceVisibility stops the frontend main animation loop, active gestures and knob particles; native analyzer production remains enabled for the full Editor lifetime and is disabled only by Editor destruction",
+    "browserPreview": "status reads PREVIEW; deterministic long waterfall is prefilled and continues scrolling",
+    "compactAnalyze": "default compact workspace view showing the analyzer while controls remain inert and hidden",
+    "compactControl": "compact workspace view showing the internally scrollable parameter strip while analyzer history timing continues without offscreen canvas painting",
+    "inactiveParameter": "knob remains visible, disabled and reduced to approximately 26 percent opacity",
+    "knobTrailActive": "local knob movement emits a short crisp module-coloured particle trail from a fixed object pool without changing parameterGesture or analyzer feedback",
+    "modeHelpVisible": "hovering or focusing PROCESS shows the selected mode description without changing top-bar geometry; assistive technology receives the same text through aria-describedby",
+    "aboutOpen": "the modal describes openFAD, UnpureBloom, the undeclared FlipShift license status, the upstream openFAD GNU AGPLv3 license and the main product functions while preserving analyzer and parameter state",
+    "waterfallLookChanged": "the visible heat map is recoloured from existing history while timeline state, event markers and audio processing remain unchanged",
+    "glitchSelected": "a translucent frequency-band overlay follows Band Center, Band Q, quality and sample rate while the waterfall remains sourced only from analyzerFrame output",
+    "pitchMapSelected": "PITCH MAP replaces AXIS in the fixed five-module strip and the analyzer shows the current Root plus Major or Minor readout",
+    "bypassActive": "analyzer and parameter groups desaturate; bypass control uses moduleCoral",
+    "freezeActive": "no new waterfall column, spectrum frame or meter frame is drawn; HOLD uses modulePlum",
+    "editorReopen": "frontend requests a complete parameter snapshot through uiReady; C++ resends state and analyzer data when visible"
+  },
+  "accessibility": {
+    "keyboardNavigation": true,
+    "visibleFocusStyle": "2px ink outline",
+    "toggleStateAttribute": "aria-pressed",
+    "canvasLabelsRequired": true,
+    "modeDescriptionRelation": "the PROCESS select references modeEffectDescription through aria-describedby and updates it for local selection, automation and restored state",
+    "localVisualControlLabel": "waterfallVisual exposes the accessible name Waterfall visual profile and each option has a non-empty description",
+    "compactTabs": "ANALYZE and CONTROL use tab semantics, aria-selected, roving tabindex and Arrow/Home/End keyboard navigation",
+    "aboutDialog": "About uses aria-modal, a labelled heading, trapped Tab navigation, Escape close and focus restoration",
+    "minimumTouchTargetPx": 28,
+    "reducedMotionSupported": true,
+    "knobInput": "native range element with vertical pointer drag, Shift fine adjustment, keyboard input and double-click reset",
+    "textOverflowPolicy": "No labels, values, buttons or selects may overflow their containers at widths from 320px to 1600px."
+  },
+  "acceptanceCriteria": [
+    "All 14 plugin parameters are represented and use the exact IDs in this document; pitchRoot and pitchScale are appended without changing existing IDs or mode values.",
+    "Changing a WebView control updates the JUCE parameter and records a valid host automation gesture.",
+    "Host automation and state restore update the WebView without a page reload.",
+    "All 24 PROCESS values have non-empty effect descriptions; the selected description and mode-specific control tooltips update after pointer input, keyboard input, host automation and state restore without resizing the top bar.",
+    "Band Glitch keeps Pivot and Width/Q as automatable DSP parameters, labels them Band Center and Band Q, and displays their exact selected band as a restrained DOM overlay without changing waterfallCanvas pixels.",
+    "Pitch Map exposes automatable pitchRoot values C through B and pitchScale values Major and Minor; its compact selectors replace AXIS in the same five-column slot only while Pitch Map is selected.",
+    "The Pitch Map readout reflects Root and Scale without generating or modifying analyzerFrame data.",
+    "Pointer drag, keyboard adjustment and double-click reset emit a restrained knob particle trail from a fixed 24-particle pool, while host automation, initial state and restored state emit none.",
+    "The knob particle animator stops when its pool is empty, is cleared when hidden or resized, and is completely disabled by prefers-reduced-motion.",
+    "About opens as a keyboard-contained modal and presents verified openFAD, UnpureBloom, source repository, undeclared FlipShift license status, upstream openFAD GNU AGPLv3 and main-feature information without changing plugin parameters.",
+    "Native About links launch only the exact C++ allow list in the system browser; browser preview links use a separate noopener tab.",
+    "In native mode the document root is marked native-surface and disables text selection, contextmenu, dragstart/drop, overscroll, tap highlight, F5/F12 and Ctrl/Cmd browser refresh, location, source and zoom commands while preserving Tab, arrows, Enter, Space, Escape and form interaction.",
+    "Hiding the native editor stops the frontend main requestAnimationFrame loop, active gestures and knob particles while analyzer production remains enabled until Editor destruction; showing it resumes from preserved waterfall history without changing plugin parameters.",
+    "Spectrum, Waterfall and Both retain values 0, 1 and 2 and reproduce the previous WebView layout semantics.",
+    "Waterfall time moves left to right, frequency is vertical, and 1x/2x/4x/8x advance approximately 15/30/60/120 visual columns per second without changing the 15 Hz analyzerFrame transfer.",
+    "WF and FFT layer buttons preserve analyzerView values 0, 1 and 2 and never allow both analyzer layers to be hidden.",
+    "VISION, PULSE, PHOSPHOR and XRAY are visually distinct while every LOOK keeps low energy dark, high energy bright, narrow peaks crisp and nearest-neighbour sampling free of a second interpolation blur.",
+    "Pivot Bend displays shiftHz as a derived bend percentage, Harmonic Scan displays it in ct, and other modes display the raw parameter in Hz.",
+    "Inactive mode parameters remain visible and disabled rather than being removed.",
+    "Browser preview produces a deterministic nonblank waterfall in every LOOK and a secondary spectrum without regular moving diagonal bands or dark-blue slanted stripes.",
+    "Prefilled browser history and subsequent live preview columns use the same generator and do not create a visible vertical refresh boundary.",
+    "Changing DSP parameters never regenerates previous history or writes parameter graphics into the heat map; subsequent real analyzer output may affect future slices, while the marker appears only in the dedicated event track and the readout stays in the toolbar.",
+    "Changing LOOK recolours the complete visible heat map from stored dB history and may cause one full canvas render, but it preserves history head, history count, advance count, marker positions, audio, latency, analyzer transfer and the host parameter list.",
+    "Changing LOOK while HOLD is active recolours stored history without advancing the timeline, and local SPEED, LOOK and LAYOUT changes never emit parameterGesture or create parameter feedback markers.",
+    "STACK, OVERLAY and SPLIT redraw from the stored ring history and preserve the existing timeline across layout and responsive changes.",
+    "At widths up to 820px and heights up to 540px, ANALYZE/CONTROL tabs appear with ANALYZE selected by default; changing the tab emits no bridge event, parameter gesture, parameter marker or explicit waterfall-history mutation.",
+    "The document root is fixed at every supported viewport. At narrow tall sizes only parameterStrip scrolls internally; the page itself never scrolls horizontally or vertically.",
+    "No graphic logo asset is rendered or embedded until a replacement identity is approved.",
+    "The production UI loads entirely from embedded resources with no HTTP request.",
+    "Windows uses WebView2 and never the legacy Internet Explorer backend.",
+    "The UI remains usable at 1000 by 650, 621 by 844, 390 by 844, 360 by 420 and 320 by 280 without horizontal overflow or text overlap.",
+    "Breakpoints at 820/821, 620/621 and the compact 540px height boundary do not create clipped controls, page scrolling or unstable layout.",
+    "Opening, closing and reopening the editor does not duplicate event listeners or alter audio processing."
+  ]
+}

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <cstddef>
 #include <complex>
+#include <cstdint>
 #include <vector>
 
 namespace openfad::flipshift
@@ -30,7 +32,15 @@ enum class SpectralMode : int
     pitchBlend,
     pitchShift,
     phaseTwist,
+    glitch,
+    pitchMap,
     count
+};
+
+enum class PitchScale : int
+{
+    major = 0,
+    minor
 };
 
 struct SpectralTransformParameters
@@ -46,17 +56,39 @@ struct SpectralTransformParameters
     int hopSize = 256;
     int channelIndex = 0;
     int numChannels = 2;
+    int pitchRoot = 0;
+    PitchScale pitchScale = PitchScale::major;
     bool freeze = false;
 };
 
 struct SpectralFrameMemory
 {
+    // prepare() owns allocation; reset() only clears runtime history.
+    void prepare(std::size_t binCount, int fftSize, int hopSize);
+    void reset() noexcept;
+    bool isPreparedFor(std::size_t binCount, int fftSize, int hopSize) const noexcept;
+
     std::vector<std::complex<float>> frozen;
     std::vector<float> smearMagnitudes;
+    std::vector<double> smearPrefixSums;
     std::vector<float> previousInputPhases;
     std::vector<float> outputPhases;
+    std::vector<float> phaseAdvances;
+    std::vector<float> mappedEnergies;
+    std::vector<float> mappedDominantEnergies;
+    std::vector<int> mappedSourceBins;
+    std::vector<int> pitchMapLowBins;
+    std::vector<int> pitchMapHighBins;
+    std::vector<float> pitchMapHighWeights;
     bool phaseInitialised = false;
     bool freezeActive = false;
+    bool pitchMapCacheValid = false;
+    int preparedFftSize = 0;
+    int preparedHopSize = 0;
+    int cachedPitchRoot = -1;
+    PitchScale cachedPitchScale = PitchScale::major;
+    float cachedPitchSampleRate = 0.0f;
+    std::uint64_t frameIndex = 0;
 };
 
 void applySpectralMode(const std::vector<std::complex<float>>& input,

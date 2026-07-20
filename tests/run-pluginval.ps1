@@ -31,15 +31,14 @@ if (-not [string]::IsNullOrWhiteSpace($PluginvalPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($PluginPath)) {
-    $buildDir = Join-Path $root 'vst3/build'
-    $candidate = Get-ChildItem -LiteralPath $buildDir -Recurse -Filter 'openFAD FlipShift.vst3' -ErrorAction SilentlyContinue |
-        Where-Object { $_.PSIsContainer } |
-        Select-Object -First 1
-    if (-not $candidate) {
-        throw 'Could not find openFAD FlipShift.vst3 under vst3/build. Pass -PluginPath explicitly.'
-    }
-    $PluginPath = $candidate.FullName
+    $PluginPath = Join-Path $root 'vst3\build\OpenFADFlipShift_artefacts\Release\VST3\openFAD FlipShift.vst3'
 }
+
+if (-not (Test-Path -LiteralPath $PluginPath -PathType Container)) {
+    throw "Release VST3 bundle was not found at $PluginPath. Build it or pass -PluginPath explicitly."
+}
+
+$PluginPath = (Resolve-Path -LiteralPath $PluginPath).Path
 
 Write-Host "Using pluginval: $pluginvalExe"
 Write-Host "Running pluginval strictness $Strictness on $PluginPath"
