@@ -14,7 +14,7 @@
 - [x] The GUI integration test uses the same Processor/Editor/WebUI sources, deterministic audio and the actual DOM; a representative run records 46 analyzerFrame events, 190 waterfall columns, 192+192 points and -10.5 dB meters.
 - [x] `tests/validate-webui.py` passes at 1000x650, 621x844, 390x844 and 320x280, asserts waterfall pixels and meter fills/readouts, and produces screenshots.
 - [x] The current 24-transform Release is installed at `C:\Program Files\Common Files\VST3\openFAD FlipShift.vst3`.
-- [x] The Release and installed bundles share SHA-256 `9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`.
+- [x] The Release and installed bundles share SHA-256 `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
 - [x] The newly installed system copy passes pluginval 1.0.4 strictness level 10 with `Repeat=3`.
 - [ ] The GUI integration executable does not load the installed VST3 or cover Ableton's wrapper/cache; complete the following DAW checks separately.
 - [ ] Complete the following listening and workflow checks in Ableton Live.
@@ -30,12 +30,12 @@
 - [ ] The editor behaves as a plug-in surface: no document-level scrolling, text selection, context menu, browser drag/drop, internal navigation, or refresh/source/location/zoom shortcuts.
 - [ ] At 320x280 the ANALYZE/CONTROL tabs keep the root fixed; only the explicit parameter tool region may scroll.
 - [ ] Hiding the editor pauses the WebView main animation, gestures and knob particles but leaves analyzer production active; destroying the Editor disables the analyzer consumer. Reopening preserves history and does not alter parameters.
-- [ ] Silence in produces silence out in Neutral, Bypass and every Spectral mode.
+- [ ] Silence in produces silence out in Off, Bypass and every spectral mode.
 
 ## Mode guidance
 
 - [ ] All 24 PROCESS values expose a non-empty effect description that matches the selected mode.
-- [ ] PROCESS lists the behavior-based names Neutral, Pivot Bend, Magnitude Diffusion, Stereo Translate, Harmonic Sieve, Spectral Divider, Peak-Relative Gate, Phase Reset, Hz Translation, Pivot Reflection, Peak Repel, Peak Stretch 2x, Peak Compress 2:1, Peak Stretch, Peak Compress, Harmonic Scan, Octave Stack Tight, Octave Stack Wide, Magnitude Comb, Ratio Crossfade, Phase-Tracked Scale, Phase Ripple, Band Glitch and Pitch Map in that order.
+- [ ] PROCESS lists Off, Bend, Smear, Spread, Harmonics, Subharm, Gate, Zero Phase, Shift, Mirror, Peak Push, Peak x2, Peak /2, Peak Expand, Peak Compress, Harm Sweep, Oct Stack, Wide Oct Stack, Comb, Pitch Blend, Spectral Scale, Phase Ripple, Glitch and Pitch Map in that order.
 - [ ] The selected effect description updates after mouse selection, keyboard selection, host automation and Live Set restore.
 - [ ] Hovering or focusing PROCESS shows the description without resizing the top bar, clipping text or covering the select and adjacent controls.
 - [ ] Shift, Scale, Pivot, Amount and Width/Q tooltips follow the selected mode-specific meaning while inactive controls remain visible and disabled.
@@ -51,17 +51,17 @@
 
 ## Frequency mapping
 
-- [ ] With `440hz-sine.wav`, Hz Translation `+100 Hz` produces a dominant peak near 540 Hz.
-- [ ] With `440hz-sine.wav`, Hz Translation `-100 Hz` produces a dominant peak near 340 Hz.
-- [ ] Phase-Tracked Scale `0.5x`, Pivot `20 Hz` produces a peak near 220 Hz.
-- [ ] Phase-Tracked Scale `2.0x`, Pivot `20 Hz` produces a peak near 880 Hz.
-- [ ] Pivot Reflection with Pivot `1000 Hz` maps the 440 Hz peak near 1560 Hz.
+- [ ] With `440hz-sine.wav`, Shift `+100 Hz` produces a dominant peak near 540 Hz.
+- [ ] With `440hz-sine.wav`, Shift `-100 Hz` produces a dominant peak near 340 Hz.
+- [ ] Spectral Scale `0.5x`, Pivot `20 Hz` produces a peak near 220 Hz.
+- [ ] Spectral Scale `2.0x`, Pivot `20 Hz` produces a peak near 880 Hz.
+- [ ] Mirror with Pivot `1000 Hz` maps the 440 Hz peak near 1560 Hz.
 
-## Band Glitch and Pitch Map
+## Glitch and Pitch Map
 
-- [ ] Band Glitch labels Pivot/Width Q as Band Center/Band Q, Shift as Offset and Amount as Density; the selected-band overlay follows those values without recolouring, clearing or recomputing waterfall history.
-- [ ] With Density at 0%, Band Glitch is neutral. Raising Density increases event probability, wet depth and refresh cadence without changing the selected frequency bounds.
-- [ ] Replaying identical input and restored parameters produces the same Band Glitch event sequence, left/right channels remain coherent, successive held epochs vary, and bins outside the selected band remain unchanged.
+- [ ] Glitch labels Pivot/Width Q as Band Center/Band Q, Shift as Offset and Amount as Density; the selected-band overlay follows those values without recolouring, clearing or recomputing waterfall history.
+- [ ] With Density at 0%, Glitch is neutral. Raising Density increases event probability, wet depth and refresh cadence without changing the selected frequency bounds.
+- [ ] Replaying identical input and restored parameters produces the same Glitch event sequence, left/right channels remain coherent, successive held epochs vary, and bins outside the selected band remain unchanged.
 - [ ] Pitch Map exposes all roots C through B and Major/Minor, with Minor using natural-minor intervals; Root, Scale and Map Depth survive automation and Live Set restore.
 - [ ] At 100% Map Depth, an E4 tone remains near 329.6 Hz in C Major and maps near E-flat4/311.1 Hz in C Minor; at 0% it remains unchanged in both scales.
 - [ ] Pitch Map conserves practical output energy without bursts, and dense chords do not create non-finite output or unstable level jumps while Root, Scale or Map Depth changes.
@@ -90,7 +90,7 @@
 - [ ] STACK, OVERLAY and SPLIT preserve the same history; SPLIT falls back to a vertical 58/42 layout at 620px and below.
 - [ ] Browser preview in every LOOK and at every speed has no regular moving diagonal bands, dark-blue slanted stripes or visible refresh boundary.
 - [ ] Pivot and transform guides follow the current parameter values.
-- [ ] Band Glitch uses a separate selected-band DOM overlay and Pitch Map uses a text key readout; neither writes synthetic energy into the analyzer Canvas or changes stored waterfall data.
+- [ ] Glitch uses a separate selected-band DOM overlay and Pitch Map uses a text key readout; neither writes synthetic energy into the analyzer Canvas or changes stored waterfall data.
 - [ ] Closing the editor does not change audio or CPU materially.
 - [ ] Save/reopen the Live Set restores all parameters and automation.
 - [ ] Duplicate, freeze/flatten and offline export produce repeatable audio.

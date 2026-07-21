@@ -650,7 +650,7 @@ int main()
         expectations.expect(setPlainParameter(processor, openfad::flipshift::ParameterIDs::widthQ, 2.0f),
                             "set Glitch band Q through the real C++ parameter");
         expectations.expect(setPlainParameter(processor, openfad::flipshift::ParameterIDs::mode, 22.0f),
-                            "selected Band Glitch through the real C++ parameter");
+                            "selected Glitch through the real C++ parameter");
 
         javascriptError.clear();
         const auto glitchState = waitForJson(*browser, glitchStateScript, 4000,

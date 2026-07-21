@@ -20,13 +20,11 @@ otherwise CMake FetchContent pulls JUCE from the official repository.
 
 Core v1 scope:
 
-- 24 spectral transforms with behavior-based public names: Neutral, Pivot Bend,
-  Magnitude Diffusion, Stereo Translate, Harmonic Sieve, Spectral Divider,
-  Peak-Relative Gate, Phase Reset, Hz Translation, Pivot Reflection, Peak
-  Repel, Peak Stretch 2x, Peak Compress 2:1, Peak Stretch, Peak Compress,
-  Harmonic Scan, Octave Stack Tight, Octave Stack Wide, Magnitude Comb, Ratio
-  Crossfade, Phase-Tracked Scale, Phase Ripple, Band Glitch, and Pitch Map.
-- Band Glitch applies deterministic, time-varying spectral offsets only inside
+- 24 concise public names: Off, Bend, Smear, Spread, Harmonics, Subharm, Gate,
+  Zero Phase, Shift, Mirror, Peak Push, Peak x2, Peak /2, Peak Expand, Peak
+  Compress, Harm Sweep, Oct Stack, Wide Oct Stack, Comb, Pitch Blend, Spectral
+  Scale, Phase Ripple, Glitch, and Pitch Map.
+- Glitch applies deterministic, time-varying spectral offsets only inside
   the band selected by Band Center and Band Q. Offset controls displacement;
   Density controls event probability, wet depth, and refresh cadence.
 - Pitch Map redistributes spectral energy toward the nearest pitch classes for
@@ -54,7 +52,7 @@ Core v1 scope:
 - The first realtime-safety pass moves quality reconfiguration off the audio
   callback, uses a consistent callback-to-configuration lock order and reset
   path, preallocates spectral memory, publishes analyzer data through an SPSC
-  three-buffer handoff with generations, makes Magnitude Diffusion O(N), and
+  three-buffer handoff with generations, makes Smear O(N), and
   rejects non-finite parameters and samples.
 
 Build and run DSP tests:
@@ -89,10 +87,31 @@ powershell -ExecutionPolicy Bypass -File tests/run-pluginval.ps1
 ```
 
 The current Release and system-installed bundles share SHA-256
-`9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`.
+`345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
 The installed copy passes pluginval 1.0.4 strictness level 10 with
 `Repeat=3`. This is Windows VST3 evidence only; it does not validate AUv3.
 The optional standalone Steinberg VST3 validator is not installed locally.
+
+## Windows installer
+
+The Windows x64 release is distributed as a single Setup executable. Close all
+DAWs, run the installer as administrator, then rescan VST3 plug-ins in the host.
+It installs the complete bundle to:
+
+`C:\Program Files\Common Files\VST3\openFAD FlipShift.vst3`
+
+The Setup executable contains the Microsoft Edge WebView2 Evergreen offline
+runtime and the Microsoft Visual C++ 2015-2022 x64 runtime. HTML, CSS, and
+JavaScript are embedded in the VST3 itself. The installed UI therefore does not
+need this repository, a development environment, a local HTTP server, Node.js,
+Python, or internet access.
+
+The installer targets 64-bit Windows 10 version 1809 or newer. The installer,
+this README, the Chinese README, licensing status, and SHA-256 checksums are
+packaged together in the release ZIP. The current binaries are not code-signed,
+so Windows may show a SmartScreen or unknown-publisher warning. Formal public
+distribution still requires resolving the project/JUCE licensing gate described
+in `LICENSING.md`.
 
 Link-time optimisation is opt-in with `-DOPENFAD_ENABLE_LTO=ON`. It is disabled
 by default because MSVC 19.44 plus JUCE 8.0.12 produced reproducible heap

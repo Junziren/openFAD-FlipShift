@@ -39,7 +39,7 @@ surface. It must not expose ordinary web-page behavior:
   production remains enabled for the full Editor lifetime and is disabled only
   by Editor destruction. Showing the surface resumes from preserved waterfall
   history without changing host parameters.
-- PROCESS exposes 24 behavior-named transforms. Band Glitch renders its selected
+- PROCESS exposes 24 concise transforms. Glitch renders its selected
   frequency band as a separate DOM overlay that never writes into the waterfall
   Canvas. Pitch Map exposes 12 roots plus Major/Minor, with Minor using
   natural-minor intervals; its ROOT/SCALE module replaces AXIS in the same fixed

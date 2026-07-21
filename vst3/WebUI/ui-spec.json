@@ -449,14 +449,14 @@
     {
       "value": 0,
       "id": "off",
-      "label": "Neutral",
+      "label": "Off",
       "description": "Leaves the spectral frame unchanged; Freeze and the global Mix path still apply.",
       "enabledControls": []
     },
     {
       "value": 1,
       "id": "detune",
-      "label": "Pivot Bend",
+      "label": "Bend",
       "description": "Expands or contracts frequency distance around Center by a limited ratio; Amount also blends the transformed spectrum.",
       "enabledControls": [
         "shiftHz",
@@ -479,7 +479,7 @@
     {
       "value": 2,
       "id": "smear",
-      "label": "Magnitude Diffusion",
+      "label": "Smear",
       "description": "Averages neighbouring bin magnitudes, smooths them over time, and retains each bin's current phase.",
       "enabledControls": [
         "amount",
@@ -497,7 +497,7 @@
     {
       "value": 3,
       "id": "spread",
-      "label": "Stereo Translate",
+      "label": "Spread",
       "description": "Translates the left and right spectra by equal Hz offsets in opposite directions; mono input uses one translation direction.",
       "enabledControls": [
         "shiftHz",
@@ -513,7 +513,7 @@
     {
       "value": 4,
       "id": "harmonics",
-      "label": "Harmonic Sieve",
+      "label": "Harmonics",
       "description": "Retains bands near integer multiples of Fundamental and attenuates the gaps without boosting them.",
       "enabledControls": [
         "pivotHz",
@@ -534,7 +534,7 @@
     {
       "value": 5,
       "id": "subharm",
-      "label": "Spectral Divider",
+      "label": "Subharm",
       "description": "Reads stepped 1x to 4x source frequencies, dividing spectral content downward by integer ratios.",
       "enabledControls": [
         "amount"
@@ -549,7 +549,7 @@
     {
       "value": 6,
       "id": "gate",
-      "label": "Peak-Relative Gate",
+      "label": "Gate",
       "description": "Derives a threshold from the strongest spectral bin and attenuates bins below it.",
       "enabledControls": [
         "amount"
@@ -564,7 +564,7 @@
     {
       "value": 7,
       "id": "robotize",
-      "label": "Phase Reset",
+      "label": "Zero Phase",
       "description": "Sets the transformed branch to zero phase, then blends it with the original spectrum.",
       "enabledControls": [
         "amount"
@@ -579,7 +579,7 @@
     {
       "value": 8,
       "id": "shift",
-      "label": "Hz Translation",
+      "label": "Shift",
       "description": "Adds the same signed Hz offset to every frequency component, bending harmonic ratios.",
       "enabledControls": [
         "shiftHz",
@@ -595,7 +595,7 @@
     {
       "value": 9,
       "id": "mirror",
-      "label": "Pivot Reflection",
+      "label": "Mirror",
       "description": "Reflects frequency order around Reflect Axis; larger Map Scale values compress the audible output toward the axis.",
       "enabledControls": [
         "scale",
@@ -614,7 +614,7 @@
     {
       "value": 10,
       "id": "peakFollow",
-      "label": "Peak Repel",
+      "label": "Peak Push",
       "description": "Detects the strongest bin and moves the full spectrum farther from Anchor by the peak-to-anchor offset.",
       "enabledControls": [
         "pivotHz",
@@ -632,7 +632,7 @@
     {
       "value": 11,
       "id": "peakOctUp",
-      "label": "Peak Stretch 2x",
+      "label": "Peak x2",
       "description": "Keeps the detected peak fixed and doubles every component's linear Hz distance from it.",
       "enabledControls": [
         "amount"
@@ -647,7 +647,7 @@
     {
       "value": 12,
       "id": "peakOctDown",
-      "label": "Peak Compress 2:1",
+      "label": "Peak /2",
       "description": "Keeps the detected peak fixed and halves every component's linear Hz distance from it.",
       "enabledControls": [
         "amount"
@@ -662,7 +662,7 @@
     {
       "value": 13,
       "id": "peakHmxUp",
-      "label": "Peak Stretch",
+      "label": "Peak Expand",
       "description": "Keeps the strongest peak fixed and expands linear Hz distances by the Span control plus one.",
       "enabledControls": [
         "scale",
@@ -696,7 +696,7 @@
     {
       "value": 15,
       "id": "harmSweep",
-      "label": "Harmonic Scan",
+      "label": "Harm Sweep",
       "description": "Retains bands near integer multiples of a fundamental transposed by Scan in cents.",
       "enabledControls": [
         "shiftHz",
@@ -721,7 +721,7 @@
     {
       "value": 16,
       "id": "shepard",
-      "label": "Octave Stack Tight",
+      "label": "Oct Stack",
       "description": "Sums seven octave-related resamplings through a tight octave-periodic window.",
       "enabledControls": [
         "pivotHz",
@@ -739,7 +739,7 @@
     {
       "value": 17,
       "id": "shepardWide",
-      "label": "Octave Stack Wide",
+      "label": "Wide Oct Stack",
       "description": "Sums seven octave-related resamplings through a broad octave-periodic window.",
       "enabledControls": [
         "pivotHz",
@@ -757,7 +757,7 @@
     {
       "value": 18,
       "id": "comb",
-      "label": "Magnitude Comb",
+      "label": "Comb",
       "description": "Applies a cosine comb to spectral magnitudes. Tooth spacing is the absolute Spacing value plus ten percent of Base.",
       "enabledControls": [
         "shiftHz",
@@ -777,7 +777,7 @@
     {
       "value": 19,
       "id": "pitchBlend",
-      "label": "Ratio Crossfade",
+      "label": "Pitch Blend",
       "description": "Crossfades complex bins between the original and pivot-scaled spectra without phase tracking.",
       "enabledControls": [
         "scale",
@@ -796,7 +796,7 @@
     {
       "value": 20,
       "id": "pitchShift",
-      "label": "Phase-Tracked Scale",
+      "label": "Spectral Scale",
       "description": "Rescales frequency distance around Pivot and applies phase tracking to remapped bins.",
       "enabledControls": [
         "scale",
@@ -833,7 +833,7 @@
     {
       "value": 22,
       "id": "glitch",
-      "label": "Band Glitch",
+      "label": "Glitch",
       "description": "Randomly offsets spectral content only inside the band selected by Band Center and Band Q; Density sets event probability and wet depth.",
       "enabledControls": [
         "shiftHz",
@@ -1128,7 +1128,7 @@
       }
     },
     "features": [
-      "24 spectral transformation modes including Band Glitch and scale-aware Pitch Map",
+      "24 spectral transformation modes including Glitch and scale-aware Pitch Map",
       "long waterfall with four LOOK profiles and adjustable scroll speed",
       "input/output FFT, frequency guides, meters, freeze and quality control",
       "VST3/WebView2 and AUv3/WKWebView build paths with host automation and state recall"
@@ -1258,7 +1258,7 @@
     "Changing a WebView control updates the JUCE parameter and records a valid host automation gesture.",
     "Host automation and state restore update the WebView without a page reload.",
     "All 24 PROCESS values have non-empty effect descriptions; the selected description and mode-specific control tooltips update after pointer input, keyboard input, host automation and state restore without resizing the top bar.",
-    "Band Glitch keeps Pivot and Width/Q as automatable DSP parameters, labels them Band Center and Band Q, and displays their exact selected band as a restrained DOM overlay without changing waterfallCanvas pixels.",
+    "Glitch keeps Pivot and Width/Q as automatable DSP parameters, labels them Band Center and Band Q, and displays their exact selected band as a restrained DOM overlay without changing waterfallCanvas pixels.",
     "Pitch Map exposes automatable pitchRoot values C through B and pitchScale values Major and Minor; its compact selectors replace AXIS in the same five-column slot only while Pitch Map is selected.",
     "The Pitch Map readout reflects Root and Scale without generating or modifying analyzerFrame data.",
     "Pointer drag, keyboard adjustment and double-click reset emit a restrained knob particle trail from a fixed 24-particle pool, while host automation, initial state and restored state emit none.",
@@ -1271,7 +1271,7 @@
     "Waterfall time moves left to right, frequency is vertical, and 1x/2x/4x/8x advance approximately 15/30/60/120 visual columns per second without changing the 15 Hz analyzerFrame transfer.",
     "WF and FFT layer buttons preserve analyzerView values 0, 1 and 2 and never allow both analyzer layers to be hidden.",
     "VISION, PULSE, PHOSPHOR and XRAY are visually distinct while every LOOK keeps low energy dark, high energy bright, narrow peaks crisp and nearest-neighbour sampling free of a second interpolation blur.",
-    "Pivot Bend displays shiftHz as a derived bend percentage, Harmonic Scan displays it in ct, and other modes display the raw parameter in Hz.",
+    "Bend displays shiftHz as a derived bend percentage, Harm Sweep displays it in ct, and other modes display the raw parameter in Hz.",
     "Inactive mode parameters remain visible and disabled rather than being removed.",
     "Browser preview produces a deterministic nonblank waterfall in every LOOK and a secondary spectrum without regular moving diagonal bands or dark-blue slanted stripes.",
     "Prefilled browser history and subsequent live preview columns use the same generator and do not create a visible vertical refresh boundary.",

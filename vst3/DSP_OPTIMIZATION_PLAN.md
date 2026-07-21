@@ -43,7 +43,7 @@ Every optimization must meet all of these conditions:
    Instruments, Linux `perf`, and ARM PMU counters. Separate FFT cost, spectral
    mode cost, ring-buffer movement, analyzer publishing, and parameter work.
 4. Save reference WAVs and per-frame complex spectra for all 24 modes. Include
-   Band Glitch selected-band/out-of-band references and Pitch Map coverage for
+   Glitch selected-band/out-of-band references and Pitch Map coverage for
    all 12 roots in Major and Minor, using the natural-minor interval set.
    Define tolerances before changing code.
 
@@ -75,7 +75,7 @@ Every optimization must meet all of these conditions:
 - [x] Smooth output gain in the linear domain, removing per-sample dB-to-linear
   conversion.
 - [x] Precompute per-bin phase advance and wrap long-running phase accumulators.
-- [x] Run peak search, Peak-Relative Gate work, and phase-history maintenance
+- [x] Run peak search, Gate work, and phase-history maintenance
   only for modes that require them; peak-dependent modes read the frozen
   spectrum while Freeze is active.
 - [ ] Split wrapped copies into contiguous spans where benchmarks show value.
@@ -89,8 +89,8 @@ Every optimization must meet all of these conditions:
 1. Split `applySpectralMode()` into mode-specific kernels selected once per
    frame. Remove the large per-bin switch and flags that are constant for the
    whole frame.
-2. Create fast paths for Neutral, bypass, zero Amount, unity Scale, zero Shift,
-   and unchanged Freeze. Neutral should reuse the input spectrum without
+2. Create fast paths for Off, bypass, zero Amount, unity Scale, zero Shift,
+   and unchanged Freeze. Off should reuse the input spectrum without
    remapping work.
 3. Peak work is now conditional by mode; further reuse of squared magnitudes is
    still pending.
@@ -98,9 +98,9 @@ Every optimization must meet all of these conditions:
    calls with frame-level constants, recurrence relations, bounded lookup
    tables, or measured polynomial approximations. Each approximation needs an
    error bound and listening/aliasing tests.
-5. [x] Magnitude Diffusion now uses prefix sums, reducing wide-radius work from
+5. [x] Smear now uses prefix sums, reducing wide-radius work from
    O(N * radius) to O(N).
-6. Precompute Harmonic Sieve, Harmonic Scan and Octave Stack masks when their
+6. Precompute Harmonics, Harm Sweep and Oct Stack masks when their
    controlling parameters are stable, then interpolate or rebuild only after a
    meaningful parameter delta.
 7. Review remap modes for gather/scatter locality. Prefer sequential source
@@ -109,7 +109,7 @@ Every optimization must meet all of these conditions:
    weights, rebuilding only when root, scale, sample rate or FFT configuration
    changes. Keep steady-state processing free of allocation, locks and per-bin
    `log2`/`pow`.
-9. [x] Band Glitch uses deterministic hashes and bounded frame-held epochs
+9. [x] Glitch uses deterministic hashes and bounded frame-held epochs
    rather than mutable RNG state. Preserve stereo consistency and exact
    out-of-band identity while benchmarking hash cost at Pi-class FFT sizes.
 
@@ -158,7 +158,7 @@ steps with reference renders.
 - DSP coverage includes 44.1-192 kHz, irregular block sizes from 0 to 4096,
   finite-value isolation, analyzer concurrency/generation behavior, long phase
   stability, Freeze memory, and randomized mode/quality stress.
-- Band Glitch coverage verifies deterministic replay, stereo consistency,
+- Glitch coverage verifies deterministic replay, stereo consistency,
   epoch changes and per-frame out-of-band identity. Pitch Map coverage verifies
   expected dominant-frequency mapping for C/G Major and Minor using the
   natural-minor interval set.
@@ -167,7 +167,7 @@ steps with reference renders.
   reports 46 analyzer events, 190 waterfall columns, 192+192 points and -10.5 dB
   meters. It does not load the installed VST3 or exercise Ableton wrapper/cache.
 - The current Release and system-installed bundles share SHA-256
-  `9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`.
+  `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
   The installed copy passes pluginval 1.0.4 strictness 10 with `Repeat=3`.
 - No Apple/Xcode/AUv3 device result or Raspberry Pi 4/5 benchmark has been
   produced; neither platform may be described as validated.

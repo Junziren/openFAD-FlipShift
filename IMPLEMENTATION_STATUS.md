@@ -10,13 +10,11 @@ Implemented:
   original mode values 0-21 remain unchanged for state compatibility.
 - STFT engine with Low/Normal/High FFT quality, dry-path latency alignment,
   sample-level smoothing for continuous parameters and stereo-safe processing.
-- 24 spectral transforms: Neutral, Pivot Bend, Magnitude Diffusion, Stereo
-  Translate, Harmonic Sieve, Spectral Divider, Peak-Relative Gate, Phase Reset,
-  Hz Translation, Pivot Reflection, Peak Repel, Peak Stretch 2x, Peak Compress
-  2:1, Peak Stretch, Peak Compress, Harmonic Scan, Octave Stack Tight, Octave
-  Stack Wide, Magnitude Comb, Ratio Crossfade, Phase-Tracked Scale, Phase
-  Ripple, Band Glitch and Pitch Map.
-- Band Glitch uses Band Center and Band Q to constrain deterministic,
+- 24 spectral transforms: Off, Bend, Smear, Spread, Harmonics, Subharm, Gate,
+  Zero Phase, Shift, Mirror, Peak Push, Peak x2, Peak /2, Peak Expand, Peak
+  Compress, Harm Sweep, Oct Stack, Wide Oct Stack, Comb, Pitch Blend, Spectral
+  Scale, Phase Ripple, Glitch and Pitch Map.
+- Glitch uses Band Center and Band Q to constrain deterministic,
   time-varying spectral offsets. Offset controls displacement; Density controls
   event probability, wet depth and refresh cadence. Bins outside the selected
   band are preserved and stereo channels share the same event pattern.
@@ -43,7 +41,7 @@ Implemented:
   provide an explicit reset path.
 - Spectral memory is allocated during prepare; analyzer publication uses an
   SPSC fixed three-buffer exchange with sequence/generation validation;
-  Magnitude Diffusion is O(N); continuous values and audio samples have
+  Smear is O(N); continuous values and audio samples have
   finite/range guards.
 - CMake and source configuration are present to expose AUv3 plus the required
   standalone container when `OPENFAD_BUILD_AUV3=ON`; Windows cannot compile,
@@ -51,6 +49,10 @@ Implemented:
 - Knob defaults are centred where practical, with nonlinear ranges around the
   musically useful values for Shift, Scale, Pivot, Width/Q and output gain.
 - DSP test executable and PowerShell build/pluginval scripts.
+- Single-file Inno Setup Windows x64 installer. It embeds the Microsoft-signed
+  WebView2 Evergreen standalone offline installer and VC++ 2015-2022 x64
+  Redistributable, replaces the complete system VST3 bundle, verifies both
+  runtimes before copying, and does not require a source tree or local server.
 - Three static UI previews plus one interactive HTML preview.
 
 Validated locally on Windows:
@@ -58,11 +60,11 @@ Validated locally on Windows:
 - Release build and CTest pass 2/2 using
   `D:\VS2022BuildTools` and `D:\JUCE`; the build script sets
   UTF-8 console output so Ninja records MSVC header dependencies correctly.
-- Hz Translation, Phase-Tracked Scale, Pivot Reflection, unity-gain
+- Shift, Spectral Scale, Mirror, unity-gain
   reconstruction, every spectral mode, Freeze latching, sample-rate/quality
   setup, dry-path latency and deterministic random mode/quality stress tests
   pass.
-- Band Glitch tests cover deterministic replay, stereo consistency,
+- Glitch tests cover deterministic replay, stereo consistency,
   epoch-to-epoch variation and per-frame preservation outside the selected
   band. Pitch Map tests cover C/G roots in Major and Minor (natural-minor
   intervals) and verify the expected dominant-frequency mapping.
@@ -78,9 +80,19 @@ Validated locally on Windows:
 - The current Release is installed at
   `C:\Program Files\Common Files\VST3\openFAD FlipShift.vst3`; the Release
   and installed bundles share SHA-256
-  `9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`.
+  `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
 - The installed copy passes pluginval 1.0.4 strictness level 10 with
   `Repeat=3`. This validates the Windows VST3 bundle, not AUv3.
+- The packaged Setup executable was tested through normal install, forced
+  prerequisite execution, stale-bundle cleanup, full relative-path/length/hash
+  comparison, silent uninstall, and clean reinstall. Uninstall preserves the
+  shared Microsoft runtimes. The final installed bundle has zero manifest
+  differences from the Release source.
+- With external WebView networking blocked and a fresh user-data directory, the
+  native WebView test still passes waterfall, dB-meter, 24-mode, Pitch Map and
+  Glitch checks. The installed VST3 then passes three independent
+  strictness-10 pluginval processes with different seeds, plus a final pass
+  after uninstall/reinstall.
 - Bypass is exported as the standard host bypass parameter. Quality, Analyzer
   View and Freeze are intentionally non-automatable; Mode and sound controls
   remain automatable.
@@ -96,6 +108,12 @@ Remaining release checks:
   changes by ear.
 - Verify preset restore and latency compensation in Ableton Live.
 - REAPER is not installed on this machine, so cross-host listening remains open.
+- Run the installer in an offline clean Windows VM with no pre-existing
+  WebView2/VC++ runtime to exercise the true missing-runtime branch. The current
+  machine can prove that both signed offline payloads are embedded and invoked,
+  but it already had those shared runtimes installed.
+- Code-sign the VST3 and Setup executable before public distribution; the
+  current unsigned artifacts may trigger SmartScreen warnings.
 - Build, sign, and validate AUv3 on macOS/Xcode, then test GarageBand and a
   second AUv3 host on physical iPhone/iPad hardware.
 - Record Apple Silicon/Intel DSP and WKWebView profiles. None of the Apple,

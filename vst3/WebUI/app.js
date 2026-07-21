@@ -2,12 +2,11 @@
   "use strict";
 
   const modeNames = [
-    "Neutral", "Pivot Bend", "Magnitude Diffusion", "Stereo Translate",
-    "Harmonic Sieve", "Spectral Divider", "Peak-Relative Gate", "Phase Reset",
-    "Hz Translation", "Pivot Reflection", "Peak Repel", "Peak Stretch 2x",
-    "Peak Compress 2:1", "Peak Stretch", "Peak Compress", "Harmonic Scan",
-    "Octave Stack Tight", "Octave Stack Wide", "Magnitude Comb", "Ratio Crossfade",
-    "Phase-Tracked Scale", "Phase Ripple", "Band Glitch", "Pitch Map"
+    "Off", "Bend", "Smear", "Spread", "Harmonics", "Subharm",
+    "Gate", "Zero Phase", "Shift", "Mirror", "Peak Push", "Peak x2",
+    "Peak /2", "Peak Expand", "Peak Compress", "Harm Sweep",
+    "Oct Stack", "Wide Oct Stack", "Comb", "Pitch Blend",
+    "Spectral Scale", "Phase Ripple", "Glitch", "Pitch Map"
   ];
 
   const pitchRootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];

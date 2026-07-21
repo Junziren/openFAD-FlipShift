@@ -73,12 +73,11 @@ $expectedModeIds = @(
     'glitch', 'pitchMap'
 )
 $expectedModeLabels = @(
-    'Neutral', 'Pivot Bend', 'Magnitude Diffusion', 'Stereo Translate',
-    'Harmonic Sieve', 'Spectral Divider', 'Peak-Relative Gate', 'Phase Reset',
-    'Hz Translation', 'Pivot Reflection', 'Peak Repel', 'Peak Stretch 2x',
-    'Peak Compress 2:1', 'Peak Stretch', 'Peak Compress', 'Harmonic Scan',
-    'Octave Stack Tight', 'Octave Stack Wide', 'Magnitude Comb', 'Ratio Crossfade',
-    'Phase-Tracked Scale', 'Phase Ripple', 'Band Glitch', 'Pitch Map'
+    'Off', 'Bend', 'Smear', 'Spread', 'Harmonics', 'Subharm',
+    'Gate', 'Zero Phase', 'Shift', 'Mirror', 'Peak Push', 'Peak x2',
+    'Peak /2', 'Peak Expand', 'Peak Compress', 'Harm Sweep',
+    'Oct Stack', 'Wide Oct Stack', 'Comb', 'Pitch Blend',
+    'Spectral Scale', 'Phase Ripple', 'Glitch', 'Pitch Map'
 )
 $modes = @($uiSpec.modes)
 Assert-Contract ($modes.Count -eq $expectedModeIds.Count) 'ui-spec must contain exactly 24 modes.'
@@ -99,8 +98,8 @@ for ($index = 0; $index -lt $expectedModeIds.Count; $index++) {
     Assert-Contract ($appModeDescriptions[$index] -eq $mode.description) "app.js description for mode '$($mode.id)' differs from ui-spec."
 }
 
-Assert-Contract ($modes[1].labelOverrides.shiftHz -eq 'BEND' -and $modes[1].labelOverrides.pivotHz -eq 'CENTER') 'Pivot Bend controls must use BEND and CENTER.'
-Assert-Contract ($modes[10].labelOverrides.pivotHz -eq 'ANCHOR' -and $modes[10].labelOverrides.amount -eq 'REPEL') 'Peak Repel controls must use ANCHOR and REPEL.'
+Assert-Contract ($modes[1].labelOverrides.shiftHz -eq 'BEND' -and $modes[1].labelOverrides.pivotHz -eq 'CENTER') 'Bend controls must use BEND and CENTER.'
+Assert-Contract ($modes[10].labelOverrides.pivotHz -eq 'ANCHOR' -and $modes[10].labelOverrides.amount -eq 'REPEL') 'Peak Push controls must use ANCHOR and REPEL.'
 Assert-Contract ($modes[11].labelOverrides.amount -eq 'BLEND' -and $modes[12].labelOverrides.amount -eq 'BLEND') 'Fixed peak-distance modes must not claim octave controls.'
 Assert-Contract ($modes[13].labelOverrides.scale -eq 'SPAN' -and $modes[14].labelOverrides.scale -eq 'SPAN') 'Variable peak-distance modes must not use HMX terminology.'
 Assert-Contract ($modes[16].labelOverrides.amount -eq 'OCTAVE POSITION' -and $modes[17].labelOverrides.amount -eq 'OCTAVE POSITION') 'Octave Stack controls must use OCTAVE POSITION.'

@@ -11,8 +11,8 @@ openFAD FlipShift 是一款频谱创意效果器，围绕频率平移、镜像�
 
 当前 Windows Release 版本已经完成：
 
-- 24 种频谱变换，公开名称按实际 DSP 行为命名：Neutral、Pivot Bend、Magnitude Diffusion、Stereo Translate、Harmonic Sieve、Spectral Divider、Peak-Relative Gate、Phase Reset、Hz Translation、Pivot Reflection、Peak Repel、Peak Stretch 2x、Peak Compress 2:1、Peak Stretch、Peak Compress、Harmonic Scan、Octave Stack Tight、Octave Stack Wide、Magnitude Comb、Ratio Crossfade、Phase-Tracked Scale、Phase Ripple、Band Glitch、Pitch Map。PROCESS 在悬停、键盘聚焦、宿主自动化和状态恢复后都会显示当前模式的效果说明，相关旋钮提示也会随模式更新。
-- Band Glitch 只在 Band Center 和 Band Q 选定的频段内执行确定性、随时间变化的随机频谱偏移；Offset 控制位移，Density 同时控制事件概率、湿度和刷新节奏。选区外频谱保持不变，左右声道共享同一事件布局。
+- 24 种频谱变换使用简短、常见的公开名称：Off、Bend、Smear、Spread、Harmonics、Subharm、Gate、Zero Phase、Shift、Mirror、Peak Push、Peak x2、Peak /2、Peak Expand、Peak Compress、Harm Sweep、Oct Stack、Wide Oct Stack、Comb、Pitch Blend、Spectral Scale、Phase Ripple、Glitch、Pitch Map。PROCESS 在悬停、键盘聚焦、宿主自动化和状态恢复后都会显示完整效果说明，相关旋钮提示也会随模式更新。
+- Glitch 只在 Band Center 和 Band Q 选定的频段内执行确定性、随时间变化的随机频谱偏移；Offset 控制位移，Density 同时控制事件概率、湿度和刷新节奏。选区外频谱保持不变，左右声道共享同一事件布局。
 - Pitch Map 可选择 C 至 B 共 12 个根音，以及 Major 或 Minor；其中 Minor 使用自然小调音程，Map Depth 在原始频谱与按最近音阶音归并的频谱之间混合。
 - Low、Normal、High 三档 FFT 质量。
 - 与频谱路径延迟对齐的干声/湿声混合。
@@ -25,12 +25,22 @@ openFAD FlipShift 是一款频谱创意效果器，围绕频率平移、镜像�
 - 参数双向同步、宿主自动化手势和状态恢复。
 - 320x280 最小插件窗口；紧凑窗口通过 ANALYZE/CONTROL Tab 保持固定插件表面。
 - 编辑器隐藏时通过 `surfaceVisibility` 暂停前端主 `requestAnimationFrame`、手势和旋钮粒子；原生分析器消费者在整个 Editor 生命周期内保持启用，仅在 Editor 析构时禁用，重新显示时继续使用保留的瀑布历史。
-- 首轮实时稳健性和低风险性能优化：质量异步切换，统一 `callback -> configuration` 锁顺序，完整 `reset()`，分析器 SPSC 固定三缓冲和 generation 隔离，prepare 阶段预分配，Magnitude Diffusion O(N)，以及参数、采样率、输入和输出的 finite/clamp 防线。
+- 首轮实时稳健性和低风险性能优化：质量异步切换，统一 `callback -> configuration` 锁顺序，完整 `reset()`，分析器 SPSC 固定三缓冲和 generation 隔离，prepare 阶段预分配，Smear O(N)，以及参数、采样率、输入和输出的 finite/clamp 防线。
 - Windows VST3 Release 构建和 CTest 2/2 通过，包含 DSP 测试和真实 WebView2 GUI 集成测试；WebView 四视口运行时测试也通过。
-- 当前 Release 与系统安装副本的 SHA-256 均为 `9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`。
+- 当前 Release 与系统安装副本的 SHA-256 均为 `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`。
 - 系统安装副本已通过 pluginval 1.0.4 严格度 10、`Repeat=3`；该结果只验证 Windows VST3，不能替代 AUv3 验证。
 
 AUv3 的 CMake 配置已经加入，但 Apple/Xcode 编译、签名、GarageBand、额外 AUv3 宿主和 iPhone/iPad 真机测试仍未验证。树莓派 4/5 的 callback 分位数和实机性能基准也仍未验证。
+
+## Windows 安装程序
+
+Windows x64 版本提供单一 Setup 安装程序。安装前关闭所有 DAW，以管理员身份运行安装程序，然后在宿主中重新扫描 VST3。插件会安装到：
+
+`C:\Program Files\Common Files\VST3\openFAD FlipShift.vst3`
+
+Setup 已内置 Microsoft Edge WebView2 Evergreen x64 完整离线运行时和 Microsoft Visual C++ 2015-2022 x64 运行库。HTML、CSS、JavaScript 已嵌入 VST3 二进制，因此安装后的界面不依赖本仓库、开发环境、本地 HTTP 服务、Node.js、Python 或互联网连接。
+
+安装程序面向 64 位 Windows 10 1809 及更高版本。发布 ZIP 会同时包含 Setup、`README.md`、本中文说明、`LICENSING.md` 和 SHA-256 校验文件。当前二进制没有代码签名，因此 Windows 可能显示 SmartScreen 或未知发布者警告。正式公开分发前仍需解决 `LICENSING.md` 记录的项目协议和 JUCE 授权路径。
 
 ## 许可证状态
 
@@ -191,7 +201,7 @@ C++ 发送给前端：
 
 - 14 个参数的精确 ID、范围、默认值、单位和映射。
 - 24 个模式下哪些控件启用、控件标签如何变化，以及每个 PROCESS 选项的效果说明和模式专用参数提示。
-- Band Glitch 的选区覆盖层只读取 Band Center、Band Q、质量和采样率，不写入、重着色或重算瀑布 Canvas 历史。
+- Glitch 的选区覆盖层只读取 Band Center、Band Q、质量和采样率，不写入、重着色或重算瀑布 Canvas 历史。
 - Pitch Map 选中时，ROOT/SCALE 控件在五列参数条中原位替换 AXIS，并显示当前根音与调式；离开该模式后恢复 AXIS。
 - WF 和 FFT 两个显示图层开关，内部仍映射 Spectrum、Waterfall、Both 三种分析器视图。
 - 1x、2x、4x、8x 四档瀑布滚动速度，约对应 15、30、60、120 个视觉列/秒；真实分析数据仍为 15 Hz。
@@ -278,7 +288,7 @@ cmake --build vst3/build-ios --config Release \
 
 ## DSP 优化原则
 
-本轮已经完成第一批不改变产品语义的 DSP/实时线程优化：质量重建和延迟通知移出音频回调，锁顺序统一为 `callback -> configuration`，补齐处理器/引擎 `reset()`，prepare 阶段预分配频谱状态，分析器改为带 generation 的 SPSC 固定三缓冲，Magnitude Diffusion 从邻域重复求和降为 O(N) 前缀和，并加入 finite/clamp 防线、线性增益平滑、环形 mask、条件查峰和相位回绕。Pitch Map 的映射表只在根音、调式、采样率或 FFT 配置变化时重建；Band Glitch 使用确定性哈希和帧保持，不在音频回调中分配内存。完整后续计划位于 `vst3/DSP_OPTIMIZATION_PLAN.md`，目标仍是按树莓派 4/5 性能等级约束代码。
+本轮已经完成第一批不改变产品语义的 DSP/实时线程优化：质量重建和延迟通知移出音频回调，锁顺序统一为 `callback -> configuration`，补齐处理器/引擎 `reset()`，prepare 阶段预分配频谱状态，分析器改为带 generation 的 SPSC 固定三缓冲，Smear 从邻域重复求和降为 O(N) 前缀和，并加入 finite/clamp 防线、线性增益平滑、环形 mask、条件查峰和相位回绕。Pitch Map 的映射表只在根音、调式、采样率或 FFT 配置变化时重建；Glitch 使用确定性哈希和帧保持，不在音频回调中分配内存。完整后续计划位于 `vst3/DSP_OPTIMIZATION_PLAN.md`，目标仍是按树莓派 4/5 性能等级约束代码。
 
 优先顺序：
 

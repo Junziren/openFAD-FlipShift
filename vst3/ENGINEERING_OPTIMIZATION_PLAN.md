@@ -56,7 +56,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 1. smoother 从硬编码默认值启动，状态恢复后的首批帧可能使用错误参数。
 2. 参数、采样率和输入缺少统一 finite/clamp 防线。
 3. 相位累加不回绕，长时间运行后 float 精度下降；phase wrap 使用循环减法。
-4. 所有模式无条件查找峰值、更新相位历史；Magnitude Diffusion 为 O(N * radius)。
+4. 所有模式无条件查找峰值、更新相位历史；Smear 为 O(N * radius)。
 5. 无编辑器消费者时仍持续计算分析器幅度与 dB。
 6. WebView 参数事件未拒绝 NaN/Inf，Windows 仍保留状态栏和默认错误页。
 7. macOS AUv3 仍可能进入 `NSWorkspace` 外链路径。
@@ -65,7 +65,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 
 1. 每采样执行 dB 到线性增益转换并重复读取声道指针。
 2. 环形索引使用 `%`，FFT 热循环包含可避免的常量计算。
-3. Octave Stack、Harmonic Scan、Phase Ripple 等模式逐 bin 调用大量超越函数。
+3. Oct Stack、Harm Sweep、Phase Ripple 等模式逐 bin 调用大量超越函数。
 4. 构建脚本部分原生命令失败后没有立即终止。
 5. 缺少逐模式性能 JSON、回调分位数、分配计数和长时相位测试。
 
@@ -74,7 +74,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 ### Phase 0: 可复现基线
 
 - [ ] 新增离线 benchmark，输出模式、质量、块大小、采样率、吞吐和耗时分位数 JSON。
-- [ ] 保存 24 种模式的参考音频和频谱特征，定义峰值、RMS、相位和最大误差容差；Band Glitch 需覆盖选区外恒等，Pitch Map 需覆盖 12 根音、Major 和使用自然小调音程的 Minor。
+- [ ] 保存 24 种模式的参考音频和频谱特征，定义峰值、RMS、相位和最大误差容差；Glitch 需覆盖选区外恒等，Pitch Map 需覆盖 12 根音、Major 和使用自然小调音程的 Minor。
 - [x] 增加分析器并发压力、长时相位和 NaN/Inf 测试；回调分配 hook 仍待补充。
 - [ ] Windows 记录 x86-64 Release 基线；Apple 记录 Intel/ARM64 与 vDSP 基线。
 - [ ] Raspberry Pi 4/5 记录 48kHz、64/128 sample block 的 p50/p95/p99/max。
@@ -94,12 +94,12 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 
 - [x] 缓存声道指针，线性域平滑输出增益，移除每采样 `pow`。
 - [x] 使用 FFT power-of-two mask 替代环形 `%`。
-- [x] 只在需要的模式查峰、计算 Peak-Relative Gate 峰值和更新相位历史；Freeze 下依赖峰值的模式使用冻结频谱。
+- [x] 只在需要的模式查峰、计算 Gate 峰值和更新相位历史；Freeze 下依赖峰值的模式使用冻结频谱。
 - [x] 预计算 bin phase advance，并在每帧回绕相位累加器。
-- [x] Magnitude Diffusion 使用前缀和，从 O(N * radius) 降到 O(N)。
+- [x] Smear 使用前缀和，从 O(N * radius) 降到 O(N)。
 - [x] Pitch Map 缓存目标 bin 和插值权重，只在根音、调式、采样率或 FFT 配置变化时重建；稳态处理不分配、不加锁，也不逐 bin 调用 `log2`/`pow`。
-- [x] Band Glitch 使用确定性哈希与有界帧保持，左右声道事件一致，选区外 bin 恒等且不依赖可变 RNG 状态。
-- [ ] 把每帧常量移出 bin 循环，并为 Neutral/Amount=0/Shift=0/Scale=1 建立 fast path。
+- [x] Glitch 使用确定性哈希与有界帧保持，左右声道事件一致，选区外 bin 恒等且不依赖可变 RNG 状态。
+- [ ] 把每帧常量移出 bin 循环，并为 Off/Amount=0/Shift=0/Scale=1 建立 fast path。
 
 ### Phase 2.5: WebView 原生插件表面
 
@@ -108,7 +108,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 - [x] 原生模式禁用文本选择、右键菜单、拖拽、内部导航和浏览器刷新/源码/缩放快捷键。
 - [x] 编辑器隐藏时仅暂停前端主 `requestAnimationFrame`、手势和旋钮粒子；分析器消费者保持到 Editor 析构，重新显示时保留瀑布历史。
 - [x] `tests/validate-webui.py` 覆盖 1000x650、621x844、390x844 和 320x280，断言瀑布像素/亮度与仪表填充/读数，并生成视觉验收截图。
-- [x] Band Glitch 使用独立 DOM 选区覆盖层，不能写入瀑布 Canvas；Pitch Map 在固定五列参数条内用 ROOT/SCALE 原位替换 AXIS，不能合成分析器能量。
+- [x] Glitch 使用独立 DOM 选区覆盖层，不能写入瀑布 Canvas；Pitch Map 在固定五列参数条内用 ROOT/SCALE 原位替换 AXIS，不能合成分析器能量。
 
 ### Phase 3: 状态切换质量
 
@@ -120,8 +120,8 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 ### Phase 4: 模式专用内核与数据布局
 
 - [ ] 按模式族拆分 kernel，避免每个 bin 执行大 switch。
-- [ ] 为 Octave Stack、Harmonic Sieve/Harmonic Scan 和 Phase Ripple 系列建立缓存表或有误差上限的近似。
-- [ ] 单独测量 Band Glitch 哈希成本和 Pitch Map scatter 写入局部性，确认 Low/Normal 质量在 Pi 级缓存预算内。
+- [ ] 为 Oct Stack、Harmonics/Harm Sweep 和 Phase Ripple 系列建立缓存表或有误差上限的近似。
+- [ ] 单独测量 Glitch 哈希成本和 Pitch Map scatter 写入局部性，确认 Low/Normal 质量在 Pi 级缓存预算内。
 - [ ] 对比 complex AoS 与 split real/imag SoA。
 - [ ] 先保证标量循环可自动向量化，再评估 JUCE SIMD、ARM64 NEON 和替代 FFT。
 - [ ] 禁止未经数值、听感和 Apple vDSP 对照验证的 fast-math。
@@ -141,7 +141,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 1. 移除音频线程质量重建和宿主延迟通知。
 2. 预分配 spectral memory；增加 finite/clamp 防线和当前状态 smoother 初始化。
 3. 无锁、固定容量、按消费者启停并限速的分析器快照。
-4. 缓存指针、线性增益、环形 mask、条件查峰、Magnitude Diffusion 前缀和、Pitch Map 映射缓存、Band Glitch 确定性帧保持和相位回绕。
+4. 缓存指针、线性增益、环形 mask、条件查峰、Smear 前缀和、Pitch Map 映射缓存、Glitch 确定性帧保持和相位回绕。
 5. WebView 原生化策略、固定插件视口和紧凑窗口 ANALYZE/CONTROL Tab。
 6. iOS/macOS 格式选择、麦克风权限、设备族、App Extension-safe 编译属性和 Apple 外链保护的 CMake/源码配置。Apple 产物本身尚未编译或真机验证。
 7. 扩展 DSP/合同/构建测试，并重新运行 Release、pluginval 和系统安装校验。
@@ -167,7 +167,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 - 文档根节点无滚动；紧凑模式只有明确工具面板可滚动。
 - native 模式无文本选择、右键、拖拽、浏览器快捷键和内部导航。
 - ANALYZE/CONTROL Tab 不改变插件参数、瀑布历史或宿主自动化。
-- Band Glitch 覆盖层和 Pitch Map 读数不改写分析器数据；Pitch Map 模块替换不改变五列布局。
+- Glitch 覆盖层和 Pitch Map 读数不改写分析器数据；Pitch Map 模块替换不改变五列布局。
 - reduced motion 和页面隐藏时无空闲前端动画；Editor 关闭/析构后停止分析器生产。
 
 ### Host/构建
@@ -175,7 +175,7 @@ WebView 只作为高质量渲染层，不作为网页浏览器产品：
 - [x] `tests/validate.ps1`、JSON/JS 静态检查、四视口 WebView 运行时检查和 `git diff --check`。
 - [x] Windows Release 构建和 CTest 2/2：完整 DSP tests，以及使用同一 Processor/Editor/WebUI 源码、确定性音频和真实 WebView2 DOM 的 GUI 集成测试。代表性结果为 46 个 analyzerFrame、190 个瀑布列、192+192 点和 -10.5 dB 输入/输出仪表。
 - [x] GUI 集成测试的边界已记录：它不加载系统安装的 VST3 bundle，也不覆盖 Ableton wrapper、插件扫描或旧 UI 缓存。
-- [x] 当前 24 模式 Release 已安装到系统 VST3 目录；Release 与安装副本的 SHA-256 均为 `9B0D45FD15D651DE5CF0603C1934C4A0242D4414D8893EDA1F64989D2A584B0C`。
+- [x] 当前 24 模式 Release 已安装到系统 VST3 目录；Release 与安装副本的 SHA-256 均为 `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`。
 - [x] 系统安装副本通过 pluginval 1.0.4 strictness 10、`Repeat=3`。
 - Apple 专属项在未经过 macOS/Xcode/真机前必须保持“未验证”，不能写成已完成。
 
