@@ -796,6 +796,7 @@ void requireConcurrentAnalyzerSnapshots()
 
         while (!producerFinished.load(std::memory_order_acquire) || idlePasses < 2000)
         {
+            const auto previousSequence = sequence;
             if (!engine.copyAnalyzerFrames(input, output, sequence))
             {
                 ++idlePasses;
@@ -804,7 +805,7 @@ void requireConcurrentAnalyzerSnapshots()
             }
 
             idlePasses = 0;
-            if (input.size() != 513 || output.size() != input.size() || sequence == 0)
+            if (input.size() != 513 || output.size() != input.size() || sequence <= previousSequence)
             {
                 failed.store(true, std::memory_order_release);
                 break;
