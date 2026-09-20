@@ -15,7 +15,7 @@ for format in VST3 AU; do
   test -d "$source"
   ditto "$source" "$target"
   binary="$target/Contents/MacOS/openFAD FlipShift"
-  lipo -verify_arch arm64 x86_64 "$binary"
+  lipo "$binary" -verify_arch arm64 x86_64
   codesign --force --sign - "$target"
   codesign --verify --strict --verbose=2 "$target"
 done
