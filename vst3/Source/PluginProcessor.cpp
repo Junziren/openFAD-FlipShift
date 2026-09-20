@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "PresetFormat.h"
 #include <cmath>
 
 namespace openfad::flipshift
@@ -24,7 +25,7 @@ juce::ValueTree copyCurrentParameterState(juce::AudioProcessorValueTreeState& pa
 
 Quality qualityFromValue(float value) noexcept
 {
-    const auto finiteValue = std::isfinite(value) ? value : static_cast<float>(Quality::normal);
+    const auto finiteValue = std::isfinite(value) ? value : static_cast<float>(Quality::high);
     return static_cast<Quality>(juce::jlimit(0, 2, static_cast<int>(std::round(finiteValue))));
 }
 } // namespace
@@ -35,8 +36,9 @@ OpenFADFlipShiftAudioProcessor::OpenFADFlipShiftAudioProcessor()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    setLatencySamples(FlipShiftEngine::getLatencySamplesForQuality(Quality::normal));
+    setLatencySamples(FlipShiftEngine::getLatencySamplesForQuality(Quality::high));
     parameters.addParameterListener(ParameterIDs::quality, this);
+    presetBaseline = initialPreset();
 }
 
 OpenFADFlipShiftAudioProcessor::~OpenFADFlipShiftAudioProcessor()
@@ -54,6 +56,7 @@ void OpenFADFlipShiftAudioProcessor::prepareToPlay(double sampleRate, int sample
     preparedBlockSize = juce::jmax(1, samplesPerBlock);
     preparedChannels = juce::jmax(1, getTotalNumOutputChannels());
     engine.prepare(preparedSampleRate, preparedBlockSize, preparedChannels, values);
+    waterfallAnalyzer.prepare(preparedSampleRate);
     activeQuality.store(static_cast<int>(values.quality), std::memory_order_release);
     enginePrepared.store(true, std::memory_order_release);
     setLatencySamples(engine.getLatencySamples());
@@ -65,6 +68,7 @@ void OpenFADFlipShiftAudioProcessor::releaseResources()
     const juce::ScopedLock configurationLock(engineConfigurationLock);
     enginePrepared.store(false, std::memory_order_release);
     engine.reset();
+    waterfallAnalyzer.invalidate();
 }
 
 void OpenFADFlipShiftAudioProcessor::reset()
@@ -72,6 +76,7 @@ void OpenFADFlipShiftAudioProcessor::reset()
     const juce::ScopedLock audioCallbackGuard(getCallbackLock());
     const juce::ScopedLock configurationLock(engineConfigurationLock);
     engine.reset();
+    waterfallAnalyzer.invalidate();
 }
 
 bool OpenFADFlipShiftAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -111,6 +116,7 @@ void OpenFADFlipShiftAudioProcessor::processBlock(juce::AudioBuffer<float>& buff
     values.quality = static_cast<Quality>(activeQuality.load(std::memory_order_acquire));
 
     engine.process(buffer, values);
+    waterfallAnalyzer.push(buffer);
 }
 
 juce::AudioProcessorEditor* OpenFADFlipShiftAudioProcessor::createEditor()
@@ -120,7 +126,13 @@ juce::AudioProcessorEditor* OpenFADFlipShiftAudioProcessor::createEditor()
 
 void OpenFADFlipShiftAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    if (auto xml = copyCurrentParameterState(parameters).createXml())
+    auto snapshot = copyCurrentParameterState(parameters);
+    {
+        const juce::ScopedLock lock(presetMetadataLock);
+        snapshot.setProperty("flipshiftPreset", juce::JSON::toString(presetBaseline, true), nullptr);
+        snapshot.setProperty("flipshiftPresetId", currentPresetId, nullptr);
+    }
+    if (auto xml = snapshot.createXml())
         copyXmlToBinary(*xml, destData);
 }
 
@@ -128,12 +140,71 @@ void OpenFADFlipShiftAudioProcessor::setStateInformation(const void* data, int s
 {
     if (auto xml = getXmlFromBinary(data, sizeInBytes))
         if (xml->hasTagName(parameters.state.getType()))
-            parameters.replaceState(juce::ValueTree::fromXml(*xml));
+        {
+            auto restored = juce::ValueTree::fromXml(*xml);
+            auto baseline = juce::JSON::parse(restored.getProperty("flipshiftPreset").toString());
+            const auto id = restored.getProperty("flipshiftPresetId").toString();
+            {
+                const juce::ScopedLock lock(presetMetadataLock);
+                presetBaseline = presets::validate(baseline, parameters).wasOk() ? baseline : initialPreset();
+                currentPresetId = id == "init" || presets::validId(id) ? id : "init";
+            }
+            parameters.replaceState(restored);
+        }
+}
+
+
+juce::var OpenFADFlipShiftAudioProcessor::capturePreset(const juce::String& name)
+{
+    return presets::capture(parameters, name);
+}
+
+juce::var OpenFADFlipShiftAudioProcessor::initialPreset()
+{
+    return presets::capture(parameters, "Init", true);
+}
+
+void OpenFADFlipShiftAudioProcessor::rememberPreset(const juce::var& document, const juce::String& id)
+{
+    {
+        const juce::ScopedLock lock(presetMetadataLock);
+        presetBaseline = document.clone();
+        currentPresetId = id;
+    }
+    updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+}
+
+juce::Result OpenFADFlipShiftAudioProcessor::applyPreset(const juce::var& document, const juce::String& id)
+{
+    const auto result = presets::validate(document, parameters);
+    if (result.failed()) return result;
+    // All fields have been checked before any host parameter is touched.
+    for (const auto* parameterId : presets::ids)
+    {
+        auto* parameter = parameters.getParameter(parameterId);
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(document["parameters"][parameterId])));
+        parameter->endChangeGesture();
+    }
+    parameters.getParameter(ParameterIDs::freeze)->setValueNotifyingHost(0.0f);
+    rememberPreset(capturePreset(document["name"].toString()), id);
+    return juce::Result::ok();
+}
+
+juce::var OpenFADFlipShiftAudioProcessor::presetStatus()
+{
+    const juce::ScopedLock lock(presetMetadataLock);
+    auto* status = new juce::DynamicObject();
+    status->setProperty("id", currentPresetId);
+    status->setProperty("name", presetBaseline["name"]);
+    status->setProperty("dirty", !presets::matches(presetBaseline, parameters));
+    return juce::var(status);
 }
 
 void OpenFADFlipShiftAudioProcessor::memoryWarningReceived()
 {
     engine.invalidateAnalyzerFrames();
+    waterfallAnalyzer.invalidate();
 }
 
 void OpenFADFlipShiftAudioProcessor::setAnalyzerConsumerActive(bool active) noexcept

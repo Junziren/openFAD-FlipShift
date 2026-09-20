@@ -27,7 +27,7 @@ struct EngineParameters
     PitchScale pitchScale = PitchScale::major;
     float mix = 0.5f;
     float outputGainDb = 0.0f;
-    Quality quality = Quality::normal;
+    Quality quality = Quality::high;
     bool bypass = false;
     bool freeze = false;
 };
@@ -92,7 +92,7 @@ private:
     int fftSize = 1024;
     int hopSize = 256;
     int ringMask = 1023;
-    Quality currentQuality = Quality::normal;
+    Quality currentQuality = Quality::high;
 
     std::unique_ptr<juce::dsp::FFT> fft;
     std::vector<float> windowBuffer;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <title>FlipShift</title>
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <main class="console-shell">
@@ -15,6 +15,21 @@
         <small>SPECTRAL TRANSFORM PROCESSOR</small>
       </div>
 
+      <div class="preset-controls">
+        <label for="presetSelect" class="sr-only">Preset</label>
+        <select id="presetSelect" aria-label="Preset"><option value="init">Init</option></select>
+        <span id="presetDirty" title="Unsaved changes" hidden>●</span>
+        <details id="presetMenu">
+          <summary aria-label="Preset actions" title="Preset actions">⋯</summary>
+          <div class="preset-menu-items">
+            <button type="button" data-preset-action="save">Save</button>
+            <button type="button" data-preset-action="saveAs">Save as…</button>
+            <button type="button" data-preset-action="import">Import…</button>
+            <button type="button" data-preset-action="export">Export…</button>
+          </div>
+        </details>
+        <select id="languageSelect" aria-label="Language"><option value="zh">中文</option><option value="en">EN</option></select>
+      </div>
       <div class="header-controls">
         <label class="header-select mode-select" data-description="">
           <span>PROCESS</span>
@@ -27,7 +42,7 @@
           <select id="quality" data-param="quality" title="FFT quality and latency">
             <option value="0">LOW</option>
             <option value="1">NORMAL</option>
-            <option value="2">HIGH</option>
+            <option value="2" selected>HIGH</option>
           </select>
         </label>
 
@@ -39,8 +54,8 @@
           </div>
         </div>
 
-        <button class="header-toggle freeze-control" id="freeze" data-param="freeze" type="button" aria-pressed="false" title="Hold the current analyzer frame">
-          <span class="toggle-led" aria-hidden="true"></span><span>HOLD</span>
+        <button class="header-toggle freeze-control" id="freeze" data-param="freeze" type="button" aria-pressed="false" title="Freeze the current sound and analyzer frame">
+          <span class="toggle-led" aria-hidden="true"></span><span>FREEZE</span>
         </button>
 
         <button class="header-toggle bypass-control" id="bypass" data-param="bypass" type="button" aria-pressed="false" title="Latency-aligned bypass">
@@ -53,7 +68,7 @@
 
         <div class="system-state">
           <div class="bridge-state" aria-live="polite"><span class="status-lamp" aria-hidden="true"></span><span id="bridgeStatus">PREVIEW</span></div>
-          <div class="engine-readout"><span id="fftReadout">1024</span><span id="rateReadout">48k</span></div>
+          <div class="engine-readout"><span id="fftReadout">2048</span><span id="rateReadout">48k</span></div>
         </div>
       </div>
     </header>
@@ -110,7 +125,7 @@
       </section>
     </div>
 
-    <section class="analyzer view-both layout-stack" id="analyzer" role="tabpanel" aria-labelledby="compactAnalyzeTab" aria-label="Input and output spectral analyzer">
+    <section class="analyzer view-both layout-overlay" id="analyzer" role="tabpanel" aria-labelledby="compactAnalyzeTab" aria-label="Input and output spectral analyzer">
       <div class="waterfall-pane">
         <div class="waterfall-toolbar">
           <span class="waterfall-title">OUTPUT HISTORY</span>
@@ -138,8 +153,8 @@
             <label class="waterfall-layout-control">
               <span>LAYOUT</span>
               <select id="analyzerLayout" aria-label="Analyzer layout" title="Analyzer layout">
-                <option value="stack" selected>STACK</option>
-                <option value="overlay">OVERLAY</option>
+                <option value="stack">STACK</option>
+                <option value="overlay" selected>OVERLAY</option>
                 <option value="split">SPLIT</option>
               </select>
             </label>
@@ -297,6 +312,21 @@
       </article>
     </section>
   </main>
-  <script src="app.js?v=7"></script>
+  <dialog id="presetDialog" aria-labelledby="presetDialogTitle">
+    <form method="dialog">
+      <h2 id="presetDialogTitle">Preset</h2>
+      <p id="presetDialogMessage"></p>
+      <label id="presetNameLabel" for="presetName">Preset name</label>
+      <input id="presetName" type="text" maxlength="120" autocomplete="off">
+      <div class="dialog-actions">
+        <button type="submit" value="cancel" formnovalidate>Cancel</button>
+        <button type="submit" id="presetDiscard" value="discard" formnovalidate>Discard</button>
+        <button type="submit" id="presetConfirm" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="presetNotice" role="status" hidden></div>
+  <script src="i18n.js"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

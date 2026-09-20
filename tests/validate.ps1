@@ -203,8 +203,8 @@ $cmake = Get-Content -LiteralPath (Join-Path $root 'vst3/CMakeLists.txt') -Raw
 $licensing = Get-Content -LiteralPath (Join-Path $root 'LICENSING.md') -Raw
 $webUiRuntimeTest = Join-Path $root 'tests/validate-webui.py'
 Assert-Contract (Test-Path -LiteralPath $webUiRuntimeTest -PathType Leaf) 'WebUI runtime validation script is missing.'
-Assert-Contract ($html -match 'styles\.css\?v=7' -and $html -match 'app\.js\?v=7') 'WebUI asset cache version must be v7.'
-Assert-Contract ($editorCpp -match 'index\.html\?v=7') 'C++ WebUI root cache version must be v7.'
+Assert-Contract ($html -match 'styles\.css\?v=8' -and $html -match 'app\.js\?v=8') 'WebUI asset cache version must be v8.'
+Assert-Contract ($editorCpp -match 'index\.html\?v=8') 'C++ WebUI root cache version must be v8.'
 Assert-Contract ($html -match 'id="axisModule"' -and $html -match 'id="pitchMapModule"' -and $html -match 'id="pitchRoot"' -and $html -match 'id="pitchScale"') 'Pitch Map selector module is incomplete.'
 Assert-Contract ($appJs -match 'axisModule\.hidden = pitchMapActive' -and $appJs -match 'pitchMapModule\.hidden = !pitchMapActive') 'Pitch Map must replace AXIS in the fixed parameter-strip slot.'
 Assert-Contract ($html -match 'id="glitchSelection"' -and $html -match 'id="pitchMapReadout"') 'Mode-specific analyzer overlays are missing.'

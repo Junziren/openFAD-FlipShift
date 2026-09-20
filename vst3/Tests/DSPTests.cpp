@@ -1,4 +1,5 @@
 #include "DSP/FlipShiftEngine.h"
+#include "DSP/WaterfallAnalyzer.h"
 #include <JuceHeader.h>
 #include <algorithm>
 #include <array>
@@ -864,10 +865,63 @@ void requirePhaseStability()
 
     std::cout << "Long-running phase stability ok\n";
 }
+void requireWaterfallDetail()
+{
+    WaterfallAnalyzer analyzer;
+    analyzer.prepare(48000.0);
+    analyzer.setEnabled(true);
+    juce::AudioBuffer<float> audio(2, WaterfallAnalyzer::fftSize);
+    for (int i = 0; i < audio.getNumSamples(); ++i)
+    {
+        const auto phase = juce::MathConstants<float>::twoPi * static_cast<float>(i) / WaterfallAnalyzer::fftSize;
+        const auto value = 0.25f * (std::sin(64 * phase) + std::sin(68 * phase));
+        audio.setSample(0, i, value);
+        audio.setSample(1, i, -value);
+    }
+    const auto original = audio.getSample(0, 100);
+    analyzer.push(audio);
+    std::vector<float> spectrum;
+    const auto check = [](bool ok, const char* message) {
+        if (!ok) { std::cerr << "Waterfall: " << message << '\n'; std::exit(1); }
+    };
+    check(analyzer.read(spectrum), "missing frame");
+    check(spectrum.size() == WaterfallAnalyzer::bins, "wrong resolution");
+    check(spectrum[64] > -13 && spectrum[68] > -13, "anti-phase stereo lost");
+    check(spectrum[66] < std::min(spectrum[64], spectrum[68]) - 35, "nearby tones not resolved");
+    check(audio.getSample(0, 100) == original, "capture modified audio");
+    check(!analyzer.read(spectrum), "duplicate frame");
+    analyzer.push(audio);
+    analyzer.invalidate();
+    check(!analyzer.read(spectrum), "stale reset frame");
+    juce::AudioBuffer<float> shortBlock(2, 128);
+    shortBlock.clear();
+    analyzer.push(shortBlock);
+    check(!analyzer.read(spectrum), "partial window published");
+    analyzer.setEnabled(false);
+    analyzer.push(audio);
+    check(!analyzer.read(spectrum), "disabled frame published");
+    analyzer.setEnabled(true);
+    audio.clear();
+    audio.setSample(0, 0, std::numeric_limits<float>::quiet_NaN());
+    analyzer.push(audio);
+    check(analyzer.read(spectrum), "missing clean silence");
+    for (const auto value : spectrum) check(value == -96.0f, "non-finite or silence contamination");
+    std::atomic<bool> done { false };
+    std::thread producer([&] {
+        for (int i = 0; i < 2000; ++i) analyzer.push(audio);
+        done.store(true, std::memory_order_release);
+    });
+    while (!done.load(std::memory_order_acquire))
+        if (analyzer.read(spectrum))
+            for (const auto value : spectrum) check(value == -96.0f, "torn concurrent snapshot");
+    producer.join();
+    std::cout << "8192-point waterfall: close tones, stereo, reset, finite and concurrent snapshots passed\n";
+}
 } // namespace
 
 int main()
 {
+    requireWaterfallDetail();
     EngineParameters parameters;
     parameters.quality = Quality::normal;
     parameters.amount = 1.0f;

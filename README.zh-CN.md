@@ -7,6 +7,17 @@
 
 openFAD FlipShift 是一款频谱创意效果器，围绕频率平移、镜像、缩放、谐波重映射、选区故障、音高映射、冻结和相位变换工作。开发者和插件厂商名称为 `UnpureBloom`。
 
+## 本次界面与预设更新
+
+- 新实例默认 Overlay 叠加布局、High（2048）FFT；旧工程仍恢复其已保存的质量。
+- 默认中文，可用顶部 `中文 / EN` 切换；效果名保留英文。语言偏好不写入宿主自动化。
+- 输入/输出频谱传输提升至 1024 点，实时与历史显示使用连续采样；常规文字与下拉框加大。
+- 顶部预设栏支持保存、另存为、导入、导出；`.flipshift` 文件内部为 UTF-8 JSON，也可导入同结构 `.json`。
+- 用户预设位于 `%APPDATA%/UnpureBloom/FlipShift/Presets`，不要求管理员权限。初始设置只读。
+- 预设保存 11 个声音参数，保留当前旁路并在加载时解除冻结；不保存显示偏好或冻结音频。切换前会提示保存未保存的参数修改。
+- DAW 工程保存完整参数和预设元数据，移走外部预设文件不会影响工程恢复。
+- 验证细节和预设格式见 `UI_REFRESH.md`。
+
 ## 当前状态
 
 当前 Windows Release 版本已经完成：
@@ -27,7 +38,7 @@ openFAD FlipShift 是一款频谱创意效果器，围绕频率平移、镜像�
 - 编辑器隐藏时通过 `surfaceVisibility` 暂停前端主 `requestAnimationFrame`、手势和旋钮粒子；原生分析器消费者在整个 Editor 生命周期内保持启用，仅在 Editor 析构时禁用，重新显示时继续使用保留的瀑布历史。
 - 首轮实时稳健性和低风险性能优化：质量异步切换，统一 `callback -> configuration` 锁顺序，完整 `reset()`，分析器 SPSC 固定三缓冲和 generation 隔离，prepare 阶段预分配，Smear O(N)，以及参数、采样率、输入和输出的 finite/clamp 防线。
 - Windows VST3 Release 构建和 CTest 2/2 通过，包含 DSP 测试和真实 WebView2 GUI 集成测试；WebView 四视口运行时测试也通过。
-- 当前 Release 与系统安装副本的 SHA-256 均为 `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`。
+- 当前 Release 与系统安装副本的 SHA-256 均为 `D69DFD4C17EB8259322D78B671567A98FDB2FA099BA11252694242E38816E359`。
 - 系统安装副本已通过 pluginval 1.0.4 严格度 10、`Repeat=3`；该结果只验证 Windows VST3，不能替代 AUv3 验证。
 
 AUv3 的 CMake 配置已经加入，但 Apple/Xcode 编译、签名、GarageBand、额外 AUv3 宿主和 iPhone/iPad 真机测试仍未验证。树莓派 4/5 的 callback 分位数和实机性能基准也仍未验证。
@@ -103,7 +114,7 @@ python tests/validate-webui.py --screenshots-dir vst3/build/webui-qa
 powershell -ExecutionPolicy Bypass -File tests/build-vst3.ps1
 ```
 
-该构建脚本运行 CTest；当前 Windows 结果为 2/2。新增的 `FlipShiftGUIIntegrationTests` 使用与插件相同的 Processor、Editor、参数、DSP 和内嵌 WebUI 源码，向真实 WebView2 输入确定性音频并读取实际 DOM。一次代表性通过结果为 46 个 `analyzerFrame` 事件、190 个瀑布列、输入/输出各 192 点，以及输入/输出均约 -10.5 dB 的仪表读数。它是测试可执行程序，不会加载系统安装的 VST3 bundle，也不能覆盖 Ableton 的 VST3 wrapper、扫描缓存或旧 UI 缓存问题。
+该构建脚本运行 CTest；当前 Windows 结果为 2/2。新增的 `FlipShiftGUIIntegrationTests` 使用与插件相同的 Processor、Editor、参数、DSP 和内嵌 WebUI 源码，向真实 WebView2 输入确定性音频并读取实际 DOM。一次代表性通过结果为 46 个 `analyzerFrame` 事件、190 个瀑布列、输入/输出各 1024 点，以及输入/输出均约 -10.5 dB 的仪表读数。它是测试可执行程序，不会加载系统安装的 VST3 bundle，也不能覆盖 Ableton 的 VST3 wrapper、扫描缓存或旧 UI 缓存问题。
 
 显式指定 JUCE 或 MSVC 环境时：
 

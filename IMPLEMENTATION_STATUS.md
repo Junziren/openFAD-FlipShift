@@ -1,3 +1,5 @@
+> The current UI/preset revision is documented in `UI_REFRESH.md`: Overlay/High defaults, bilingual UI, 1024-point display and native JSON presets. Earlier installer and DAW notes below describe the previous preview unless explicitly updated.
+
 # openFAD FlipShift implementation status
 
 ## VST3 implementation
@@ -31,7 +33,7 @@ Implemented:
 - Canvas input/output spectrum, scrolling waterfall, pivot/destination guides,
   responsive narrow layouts down to 320x280, compact ANALYZE/CONTROL tabs,
   mode-aware controls, and host automation gestures.
-- Analyzer transfer is capped at 192 logarithmic points and 15 Hz to keep UI
+- Analyzer transfer is capped at 1024 logarithmic points and 15 Hz to keep UI
   serialization and rendering outside the DSP performance budget.
 - Hiding the editor pauses the frontend main `requestAnimationFrame`, gestures,
   and knob particles. The analyzer consumer remains active for the complete
@@ -75,12 +77,12 @@ Validated locally on Windows:
 - The Windows GUI integration CTest links the same Processor, Editor, parameter,
   DSP and WebUI sources, drives deterministic audio through a real WebView2 DOM,
   and passes with a representative 46 analyzer events, 190 waterfall columns,
-  192+192 analyzer points and -10.5 dB input/output meters. It does not load the
+  1024+1024 analyzer points and -10.5 dB input/output meters. It does not load the
   installed VST3 or cover Ableton's wrapper and plug-in cache.
 - The current Release is installed at
   `C:\Program Files\Common Files\VST3\openFAD FlipShift.vst3`; the Release
   and installed bundles share SHA-256
-  `345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
+  `D69DFD4C17EB8259322D78B671567A98FDB2FA099BA11252694242E38816E359`.
 - The installed copy passes pluginval 1.0.4 strictness level 10 with
   `Repeat=3`. This validates the Windows VST3 bundle, not AUv3.
 - The packaged Setup executable was tested through normal install, forced
@@ -148,3 +150,5 @@ Remaining release checks:
 The Max source remains an implementation-grade prototype. The VST3 now passes
 the automated build, DSP and pluginval gates; DAW listening and workflow tests
 remain before calling v0.1 a release candidate.
+
+- 2026-09-18 waterfall clarity follow-up: independent 8192-point display-only output FFT, 30 Hz native bridge, stereo power averaging, generation-safe triple buffering and consistent unsmoothed history sampling. DSP/native WebView CTest 2/2, source contracts, bilingual/DPR browser checks and Release pluginval strictness 10 x3 passed. No processing FFT or latency changes; real DAW subjective acceptance remains pending. See UI_REFRESH.md.

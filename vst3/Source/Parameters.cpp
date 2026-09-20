@@ -275,7 +275,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         rangeWithCentre(-24.0f, 12.0f, 0.01f, 0.0f),
         0.0f, juce::AudioParameterFloatAttributes().withLabel("dB")));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        ParameterIDs::quality, "Quality", getQualityNames(), 1,
+        ParameterIDs::quality, "Quality", getQualityNames(), 2,
         juce::AudioParameterChoiceAttributes().withAutomatable(false)));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         ParameterIDs::analyzerView, "Analyzer View", getAnalyzerViewNames(), 2,

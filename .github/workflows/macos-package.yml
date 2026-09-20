@@ -1,0 +1,50 @@
+name: macOS package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "codex/macos-packaging"]
+    paths:
+      - "vst3/**"
+      - "scripts/package-macos.sh"
+      - ".github/workflows/macos-package.yml"
+      - "MACOS_INSTALL.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure universal VST3 and AU
+        run: >
+          cmake -S vst3 -B vst3/build-macos -G Xcode
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          -DOPENFAD_BUILD_AUV3=OFF
+          -DOPENFAD_ENABLE_LTO=OFF
+      - name: Build Release
+        run: cmake --build vst3/build-macos --config Release --parallel 3 -- CODE_SIGNING_ALLOWED=NO
+      - name: Test DSP on Apple Silicon
+        run: ctest --test-dir vst3/build-macos -C Release --output-on-failure
+      - name: Package and verify
+        run: bash scripts/package-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openFAD-FlipShift-macOS-Universal-${{ github.run_number }}
+          path: dist/macos/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: macOS-test-logs
+          path: vst3/build-macos/Testing/Temporary/
+          if-no-files-found: ignore

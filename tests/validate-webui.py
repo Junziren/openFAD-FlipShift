@@ -13,7 +13,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 
-VIEWPORTS = ((1000, 650), (621, 844), (390, 844), (320, 280))
+VIEWPORTS = ((1600, 800), (1000, 650), (621, 844), (390, 844), (320, 280))
 
 MOCK_BRIDGE_SCRIPT = """
 window.__bridgeEvents = [];
@@ -350,7 +350,7 @@ def validate_analyzer_visual_response(browser, url, screenshot_dir, errors):
     if console_errors or page_errors:
         errors.append(f"native analyzer response emitted console/page errors: {console_errors + page_errors}")
 
-    if baseline["bridge"]["status"] != "NATIVE" or baseline["bridge"]["uiReadyEvents"] != 1:
+    if baseline["bridge"]["status"] != "已连接" or baseline["bridge"]["uiReadyEvents"] != 1:
         errors.append(f"native analyzer response did not initialise the mock bridge: {baseline['bridge']}")
     if any(count != 1 for count in result["listenerCounts"]):
         errors.append(f"analyzerFrame was not delivered to exactly one frontend listener: {result['listenerCounts']}")
@@ -556,14 +556,14 @@ def validate_native_surface(browser, url, errors, screenshot_dir=None):
 
     if not pitch_map["axisHidden"] or pitch_map["moduleHidden"] or pitch_map["rootDisabled"] or pitch_map["scaleDisabled"]:
         errors.append(f"Pitch Map did not replace AXIS with active selectors: {pitch_map}")
-    if pitch_map["rootValue"] != "9" or pitch_map["scaleValue"] != "1" or pitch_map["readoutHidden"] or "A MINOR" not in pitch_map["readout"]:
+    if pitch_map["rootValue"] != "9" or pitch_map["scaleValue"] != "1" or pitch_map["readoutHidden"] or "A 自然小调" not in pitch_map["readout"]:
         errors.append(f"Pitch Map state/readout did not follow host state: {pitch_map}")
     gesture_phases = [event["phase"] for event in pitch_gestures]
     if gesture_phases != ["begin", "value", "end"] or pitch_gestures[1].get("value") != 5:
         errors.append(f"pitchRoot did not emit a complete automation gesture: {pitch_gestures}")
     if glitch["hidden"] or glitch["axisHidden"] or not glitch["pitchModuleHidden"] or not glitch["pitchReadoutHidden"]:
         errors.append(f"Glitch/Pitch Map conditional surfaces are incorrect: {glitch}")
-    if not (0 < glitch["lowHz"] < glitch["highHz"] <= 24000) or glitch["height"] <= 0 or "GLITCH BAND" not in glitch["label"]:
+    if not (0 < glitch["lowHz"] < glitch["highHz"] <= 24000) or glitch["height"] <= 0 or "Glitch 选区" not in glitch["label"]:
         errors.append(f"Glitch selected-band overlay is invalid: {glitch}")
     if canvas_before_glitch != canvas_after_glitch:
         errors.append("mode overlays modified waterfallCanvas pixels instead of remaining separate DOM guides")

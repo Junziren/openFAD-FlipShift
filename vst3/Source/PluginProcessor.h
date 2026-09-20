@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DSP/FlipShiftEngine.h"
+#include "DSP/WaterfallAnalyzer.h"
 #include "Parameters.h"
 #include <JuceHeader.h>
 
@@ -46,6 +47,15 @@ public:
     juce::AudioProcessorValueTreeState& getState() noexcept { return parameters; }
     const juce::AudioProcessorValueTreeState& getState() const noexcept { return parameters; }
 
+    juce::var capturePreset(const juce::String& name);
+    juce::var initialPreset();
+    juce::Result applyPreset(const juce::var& document, const juce::String& id);
+    void rememberPreset(const juce::var& document, const juce::String& id);
+    juce::var presetStatus();
+
+    void setWaterfallConsumerActive(bool active) noexcept { waterfallAnalyzer.setEnabled(active); }
+    bool copyWaterfallFrame(std::vector<float>& output) { return waterfallAnalyzer.read(output); }
+
     void setAnalyzerConsumerActive(bool active) noexcept;
     bool copyAnalyzerFrames(std::vector<float>& inputDb,
                             std::vector<float>& outputDb,
@@ -59,7 +69,11 @@ private:
 
     juce::AudioProcessorValueTreeState parameters;
     FlipShiftEngine engine;
-    std::atomic<int> activeQuality { static_cast<int>(Quality::normal) };
+    WaterfallAnalyzer waterfallAnalyzer;
+    juce::CriticalSection presetMetadataLock;
+    juce::var presetBaseline;
+    juce::String currentPresetId = "init";
+    std::atomic<int> activeQuality { static_cast<int>(Quality::high) };
     std::atomic<bool> enginePrepared { false };
     juce::CriticalSection engineConfigurationLock;
     double preparedSampleRate = 48000.0;

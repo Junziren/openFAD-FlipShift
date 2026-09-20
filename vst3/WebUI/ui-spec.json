@@ -233,7 +233,7 @@
       "uiId": "quality",
       "type": "select",
       "label": "QUALITY",
-      "default": 1,
+      "default": 2,
       "automatable": false,
       "choices": [
         {
@@ -879,7 +879,7 @@
     "outputData": "output spectrum in dB",
     "minimumDb": -96,
     "maximumDb": 6,
-    "transferPointCount": 192,
+    "transferPointCount": 1024,
     "transferRateHz": 15,
     "frequencyScale": "logarithmic",
     "browserPreview": {
@@ -911,7 +911,7 @@
       "canvas": "waterfallCanvas",
       "timeAxis": "left to right; newest frame enters at the right edge",
       "frequencyAxis": "vertical; low frequencies at the bottom and high frequencies at the top",
-      "historyImplementation": "4096-column by 192-bin quantised ring buffer is the source of truth; live updates use incremental canvas shifts while resize, layout and LOOK changes redraw from stored history",
+      "historyImplementation": "4096-column by 1024-bin quantised ring buffer is the source of truth; live updates use incremental canvas shifts while resize, layout and LOOK changes redraw from stored history",
       "visualReference": "VISION is the default Vision 4X inspired profile; PULSE, PHOSPHOR and XRAY provide alternate local renderings of the same stored analyzer energy",
       "dataContract": "uses analyzerFrame.output without changing transfer rate, point count or DSP data",
       "sampling": "nearest transferred analyzer bin to avoid a second interpolation blur pass",
@@ -1054,7 +1054,7 @@
           "type": "select",
           "label": "LAYOUT",
           "choices": ["STACK", "OVERLAY", "SPLIT"],
-          "default": "STACK",
+          "default": "OVERLAY",
           "hostParameter": false,
           "effect": "STACK is the existing 75/25 vertical layout; OVERLAY uses a vertically aligned transparent FFT amplitude band; SPLIT is side-by-side above 620px and a 58/42 vertical split below it"
         }
@@ -1168,8 +1168,8 @@
       {
         "event": "analyzerFrame",
         "payload": {
-          "input": "array of 192 dB values",
-          "output": "array of 192 dB values"
+          "input": "array of 1024 dB values",
+          "output": "array of 1024 dB values"
         }
       },
       {
@@ -1287,5 +1287,57 @@
     "The UI remains usable at 1000 by 650, 621 by 844, 390 by 844, 360 by 420 and 320 by 280 without horizontal overflow or text overlap.",
     "Breakpoints at 820/821, 620/621 and the compact 540px height boundary do not create clipped controls, page scrolling or unstable layout.",
     "Opening, closing and reopening the editor does not duplicate event listeners or alter audio processing."
-  ]
+  ],
+  "localization": {
+    "default": "zh-CN",
+    "languages": [
+      "zh-CN",
+      "en"
+    ],
+    "modeNames": "English, stable",
+    "persistence": "localStorage; session fallback",
+    "hostParameter": false
+  },
+  "presets": {
+    "extension": ".flipshift",
+    "encoding": "UTF-8 JSON",
+    "format": "openFAD.FlipShift.Preset",
+    "version": 1,
+    "parameters": [
+      "mode",
+      "shiftHz",
+      "scale",
+      "pivotHz",
+      "amount",
+      "widthQ",
+      "mix",
+      "outputGainDb",
+      "quality",
+      "pitchRoot",
+      "pitchScale"
+    ],
+    "excluded": [
+      "bypass",
+      "freeze",
+      "analyzerView",
+      "language",
+      "layout",
+      "look",
+      "speed"
+    ],
+    "commands": [
+      "list",
+      "load",
+      "save",
+      "saveAs",
+      "import",
+      "export"
+    ],
+    "events": [
+      "presetCommand",
+      "presetState",
+      "presetResult"
+    ],
+    "validation": "Validate the complete document before applying any parameter; reject malformed, missing, non-finite, out-of-range and unsupported-version values."
+  }
 }

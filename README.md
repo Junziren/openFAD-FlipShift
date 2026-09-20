@@ -1,3 +1,5 @@
+> UI/preset update: new instances default to High FFT and Overlay. Chinese-first UI with an English switch, 1024-point analyzer transfer, readable labels, and native JSON `.flipshift` user presets are implemented. Existing saved quality is preserved. See [UI_REFRESH.md](UI_REFRESH.md) for format and validation details.
+
 # openFAD FlipShift / VectorShift
 
 [中文工作说明](README.zh-CN.md)
@@ -38,7 +40,7 @@ Core v1 scope:
   document root does not scroll, and native mode blocks text selection, context
   menus, drag/drop, internal navigation, and browser shortcuts.
 - Real-time input/output spectrum plus a Canvas waterfall, with analyzer data
-  reduced to 192 logarithmic points and transferred at 15 Hz.
+  reduced to 1024 logarithmic points and transferred at 15 Hz.
 - Responsive selectors, mode-aware parameter labels, disabled inactive
   controls, automation gestures, compact ANALYZE/CONTROL tabs, and a 320x280
   minimum editor size.
@@ -87,7 +89,7 @@ powershell -ExecutionPolicy Bypass -File tests/run-pluginval.ps1
 ```
 
 The current Release and system-installed bundles share SHA-256
-`345B61AB31D6B7575712065F7D51B16845479C4A5B8DD60D08A77260214EC211`.
+`D69DFD4C17EB8259322D78B671567A98FDB2FA099BA11252694242E38816E359`.
 The installed copy passes pluginval 1.0.4 strictness level 10 with
 `Repeat=3`. This is Windows VST3 evidence only; it does not validate AUv3.
 The optional standalone Steinberg VST3 validator is not installed locally.
