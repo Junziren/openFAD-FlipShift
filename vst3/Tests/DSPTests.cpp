@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -777,12 +778,32 @@ void requireConcurrentAnalyzerSnapshots()
     std::thread producer([&]
     {
         juce::AudioBuffer<float> buffer(1, blockSize);
+        auto observed = 0;
         for (int block = 0; block < 3000 && !failed.load(std::memory_order_relaxed); ++block)
         {
             auto* data = buffer.getWritePointer(0);
             for (int sample = 0; sample < blockSize; ++sample)
                 data[sample] = sine(440.0f, block * blockSize + sample) * 0.25f;
             engine.process(buffer, parameters);
+            // Give the consumer a guaranteed observation opportunity every 256
+            // blocks. A loaded CI runner may otherwise schedule the entire
+            // offline producer before the consumer gets ten time slices.
+            if ((block + 1) % 256 == 0)
+            {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                while (snapshotsRead.load(std::memory_order_acquire) == observed
+                       && !failed.load(std::memory_order_acquire))
+                {
+                    if (std::chrono::steady_clock::now() >= deadline)
+                    {
+                        std::cerr << "Analyzer consumer made no progress\n";
+                        failed.store(true, std::memory_order_release);
+                        break;
+                    }
+                    std::this_thread::yield();
+                }
+                observed = snapshotsRead.load(std::memory_order_acquire);
+            }
         }
         producerFinished.store(true, std::memory_order_release);
     });
@@ -807,6 +828,8 @@ void requireConcurrentAnalyzerSnapshots()
             idlePasses = 0;
             if (input.size() != 513 || output.size() != input.size() || sequence <= previousSequence)
             {
+                std::cerr << "Analyzer snapshot shape/sequence: " << input.size() << ", "
+                          << output.size() << ", " << previousSequence << " -> " << sequence << '\n';
                 failed.store(true, std::memory_order_release);
                 break;
             }
@@ -816,6 +839,8 @@ void requireConcurrentAnalyzerSnapshots()
                 if (!std::isfinite(input[index]) || !std::isfinite(output[index])
                     || std::abs(input[index] - output[index]) > 1.0e-6f)
                 {
+                    std::cerr << "Analyzer snapshot bin " << index << ": "
+                              << input[index] << " / " << output[index] << '\n';
                     failed.store(true, std::memory_order_release);
                     break;
                 }
@@ -832,7 +857,8 @@ void requireConcurrentAnalyzerSnapshots()
 
     if (failed.load(std::memory_order_acquire) || snapshotsRead.load(std::memory_order_relaxed) < 10)
     {
-        std::cerr << "Concurrent analyzer snapshot stress failed\n";
+        std::cerr << "Concurrent analyzer snapshot stress failed, snapshots="
+                  << snapshotsRead.load() << '\n';
         std::exit(1);
     }
 
