@@ -42,6 +42,8 @@ $required = @(
     'vst3/Tests/GUIIntegrationTests.cpp'
     'vst3/DSP_OPTIMIZATION_PLAN.md'
     'vst3/WEBVIEW_AUV3.md'
+    '.github/workflows/macos-package.yml'
+    'scripts/package-auv3.sh'
 )
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $path))) { throw "Missing: $path" }
@@ -55,6 +57,8 @@ $appJsPath = Join-Path $root 'vst3/WebUI/app.js'
 $appJs = Get-Content -LiteralPath $appJsPath -Raw
 $parametersCppPath = Join-Path $root 'vst3/Source/Parameters.cpp'
 $parametersCpp = Get-Content -LiteralPath $parametersCppPath -Raw
+$macosWorkflow = Get-Content -LiteralPath (Join-Path $root '.github/workflows/macos-package.yml') -Raw
+$auv3PackageScript = Get-Content -LiteralPath (Join-Path $root 'scripts/package-auv3.sh') -Raw
 $modeNameBlock = [regex]::Match($appJs, '(?s)const modeNames = \[(.*?)\];')
 $modeBlock = [regex]::Match($appJs, '(?s)const modes = \[(.*?)\];\s*const skewForCentre')
 $profileBlock = [regex]::Match($appJs, '(?s)const waterfallVisualProfiles = \{(.*?)\};\s*const waterfallColourTables')
@@ -245,6 +249,15 @@ Assert-Contract ($cmake -match 'GIT_TAG\s+8\.0\.12') 'JUCE FetchContent fallback
 Assert-Contract ($cmake -match 'set\(OPENFAD_PLUGIN_FORMATS AUv3 Standalone\)') 'iOS formats must be limited to AUv3 and Standalone.'
 Assert-Contract ($cmake -match 'set_target_properties\(OpenFADFlipShift OpenFADFlipShift_AUv3 PROPERTIES') 'App Extension-safe compilation must cover shared code and the AUv3 wrapper.'
 Assert-Contract ($cmake -match 'XCODE_ATTRIBUTE_APPLICATION_EXTENSION_API_ONLY YES') 'AUv3 App Extension-safe API enforcement is missing.'
+Assert-Contract ($macosWorkflow -match 'runs-on:\s*macos-15') 'AUv3 workflow must run on a macOS runner.'
+Assert-Contract ($macosWorkflow -match '-DOPENFAD_BUILD_AUV3=ON') 'macOS workflow must enable AUv3 configuration.'
+Assert-Contract ($macosWorkflow -match '--target OpenFADFlipShift_Standalone OpenFADFlipShift_AUv3') 'macOS workflow must explicitly build the AUv3 container and extension targets.'
+Assert-Contract ($macosWorkflow -match 'CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO') 'Unsigned AUv3 CI builds must disable Xcode signing requirements explicitly.'
+Assert-Contract ($macosWorkflow -match 'bash scripts/package-auv3\.sh') 'macOS workflow must run the AUv3 packaging script.'
+Assert-Contract ($macosWorkflow -match 'path:\s*dist/auv3/\*') 'macOS workflow must upload the AUv3 package artifact.'
+Assert-Contract ($auv3PackageScript -match "find_bundle 'openFAD FlipShift\.app'" -and $auv3PackageScript -match "find_bundle 'openFAD FlipShift\.appex'") 'AUv3 packaging must require both the standalone app and extension bundles.'
+Assert-Contract ($auv3PackageScript -match 'lipo.*-verify_arch arm64 x86_64') 'AUv3 packaging must verify universal arm64/x86_64 binaries.'
+Assert-Contract ($auv3PackageScript -match 'plutil -lint') 'AUv3 packaging must validate bundle Info.plist files.'
 Assert-Contract ($licensing -match 'does not contain a `LICENSE`' -and $licensing -match 'JUCE 8\.0\.12') 'LICENSING.md does not match the current project and JUCE status.'
 $aboutUrls = @($about.project.url, $about.developer.url, $about.source, $about.license.upstream.url)
 foreach ($url in $aboutUrls) {

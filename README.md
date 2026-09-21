@@ -121,9 +121,12 @@ corruption under pluginval when `/GL` was enabled; the normal `/Ox` Release
 optimisation remains enabled.
 
 On Apple platforms `-DOPENFAD_BUILD_AUV3=ON` adds the AUv3 app extension and a
-standalone container. Build/signing instructions and the device acceptance
-matrix are in `vst3/WEBVIEW_AUV3.md`. Apple/Xcode builds, signing, AUv3 hosts,
-and physical iPhone/iPad testing remain unverified. The first portable DSP
+standalone container. The GitHub Actions `macOS package` workflow builds these
+targets and uploads an unsigned AUv3 review ZIP alongside the desktop package;
+`scripts/package-auv3.sh` contains the packaging step. Build/signing instructions
+and the device acceptance matrix are in `vst3/WEBVIEW_AUV3.md`. The workflow is
+configured to compile with Apple/Xcode; signing, AUv3 hosts, and physical
+iPhone/iPad testing remain unverified until their respective jobs are run. The first portable DSP
 optimizations have landed, but Raspberry Pi 4/5 callback benchmarks and ARM
 profiling remain unverified; the remaining work is tracked in
 `vst3/DSP_OPTIMIZATION_PLAN.md`.

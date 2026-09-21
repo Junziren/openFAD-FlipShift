@@ -41,7 +41,11 @@ openFAD FlipShift 是一款频谱创意效果器，围绕频率平移、镜像�
 - 当前 Release 与系统安装副本的 SHA-256 均为 `D69DFD4C17EB8259322D78B671567A98FDB2FA099BA11252694242E38816E359`。
 - 系统安装副本已通过 pluginval 1.0.4 严格度 10、`Repeat=3`；该结果只验证 Windows VST3，不能替代 AUv3 验证。
 
-AUv3 的 CMake 配置已经加入，但 Apple/Xcode 编译、签名、GarageBand、额外 AUv3 宿主和 iPhone/iPad 真机测试仍未验证。树莓派 4/5 的 callback 分位数和实机性能基准也仍未验证。
+AUv3 的 CMake 配置已经加入。GitHub Actions 的 `macOS package` workflow 会在
+macOS/Xcode runner 上构建 `OpenFADFlipShift_Standalone` 与
+`OpenFADFlipShift_AUv3`，并上传一个未签名的 AUv3 review ZIP；打包脚本是
+`scripts/package-auv3.sh`。签名、GarageBand、额外 AUv3 宿主和 iPhone/iPad
+真机测试仍未验证。树莓派 4/5 的 callback 分位数和实机性能基准也仍未验证。
 
 ## Windows 安装程序
 

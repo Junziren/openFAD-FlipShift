@@ -7,6 +7,7 @@ on:
     paths:
       - "vst3/**"
       - "scripts/package-macos.sh"
+      - "scripts/package-auv3.sh"
       - ".github/workflows/macos-package.yml"
       - "MACOS_INSTALL.md"
 
@@ -28,20 +29,45 @@ jobs:
           cmake -S vst3 -B vst3/build-macos -G Xcode
           -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-          -DOPENFAD_BUILD_AUV3=OFF
+          -DOPENFAD_BUILD_AUV3=ON
           -DOPENFAD_ENABLE_LTO=OFF
-      - name: Build Release
-        run: cmake --build vst3/build-macos --config Release --parallel 3 -- CODE_SIGNING_ALLOWED=NO
+      - name: Build desktop formats and tests
+        run: >
+          cmake --build vst3/build-macos --config Release --parallel 3
+          --target OpenFADFlipShift_VST3 OpenFADFlipShift_AU FlipShiftDSPTests
+          -- CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Build AUv3 targets
+        run: >
+          cmake --build vst3/build-macos --config Release --parallel 3
+          --target OpenFADFlipShift_Standalone OpenFADFlipShift_AUv3
+          -- CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
       - name: Test DSP on Apple Silicon
         run: ctest --test-dir vst3/build-macos -C Release --output-on-failure
       - name: Package and verify
         run: bash scripts/package-macos.sh
+      - name: Package AUv3
+        run: bash scripts/package-auv3.sh
       - uses: actions/upload-artifact@v4
         with:
           name: openFAD-FlipShift-macOS-Universal-${{ github.run_number }}
           path: dist/macos/*
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openFAD-FlipShift-AUv3-${{ github.run_number }}
+          path: dist/auv3/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Apple-build-logs-${{ github.run_number }}
+          path: |
+            vst3/build-macos/Testing/Temporary/
+            dist/auv3/*-contents.txt
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
