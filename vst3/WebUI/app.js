@@ -1,6 +1,8 @@
 (() => {
   "use strict";
 
+  const t = (text) => window.FlipShiftI18n.t(text);
+
   const modeNames = [
     "Off", "Bend", "Smear", "Spread", "Harmonics", "Subharm",
     "Gate", "Zero Phase", "Shift", "Mirror", "Peak Push", "Peak x2",
@@ -206,19 +208,22 @@
     pitchScale: 0,
     mix: 0.5,
     outputGainDb: 0,
-    quality: 1,
+    quality: 2,
     analyzerView: 2,
     bypass: 0,
     freeze: 0,
     sampleRate: 48000
   };
 
-  const pointCount = 192;
+  const pointCount = 1024;
   const waterfallHistoryCapacity = 4096;
   const analyzerData = {
     input: new Float32Array(pointCount),
     output: new Float32Array(pointCount)
   };
+  const waterfallData = new Float32Array(pointCount).fill(-96);
+  let receivedDedicatedWaterfall = false;
+  let lastWaterfallFrameTime = null;
   const previewPitchMapEnergy = new Float32Array(pointCount);
   const waterfallHistory = new Uint8Array(waterfallHistoryCapacity * pointCount);
   const waterfallHistoryMarkers = new Uint8Array(waterfallHistoryCapacity);
@@ -482,6 +487,8 @@
   }
 
   function preventNativeSurfaceDefault(event) {
+    if (event.target instanceof Element && event.target.closest('input[type="text"], textarea')
+        && ["selectstart", "contextmenu"].includes(event.type)) return;
     event.preventDefault();
   }
 
@@ -772,24 +779,24 @@
     if (id === "widthQ") return value.toFixed(2);
     if (id === "outputGainDb") return `${value >= 0 ? "+" : ""}${value.toFixed(1)} dB`;
     if (id === "pitchRoot") return pitchRootNames[clamp(Math.round(value), 0, pitchRootNames.length - 1)];
-    if (id === "pitchScale") return pitchScaleNames[clamp(Math.round(value), 0, pitchScaleNames.length - 1)];
+    if (id === "pitchScale") return t(pitchScaleNames[clamp(Math.round(value), 0, pitchScaleNames.length - 1)]);
     return String(value);
   }
 
   function parameterChangeLabel(id) {
-    if (id === "mode") return "PROCESS";
-    if (id === "quality") return "QUALITY";
-    if (id === "bypass") return "BYPASS";
-    if (id === "pitchRoot") return "ROOT";
-    if (id === "pitchScale") return "PITCH SCALE";
+    if (id === "mode") return t("PROCESS");
+    if (id === "quality") return t("QUALITY");
+    if (id === "bypass") return t("BYPASS");
+    if (id === "pitchRoot") return t("ROOT");
+    if (id === "pitchScale") return t("PITCH SCALE");
     const label = document.getElementById(`${id}Label`);
-    return label ? label.textContent : id.toUpperCase();
+    return label ? label.textContent : t(id.toUpperCase());
   }
 
   function parameterChangeValue(id) {
     if (id === "mode") return modeNames[clamp(Math.round(state.mode), 0, modeNames.length - 1)].toUpperCase();
-    if (id === "quality") return ["LOW", "NORMAL", "HIGH"][clamp(Math.round(state.quality), 0, 2)];
-    if (id === "bypass") return state.bypass >= 0.5 ? "ON" : "OFF";
+    if (id === "quality") return t(["LOW", "NORMAL", "HIGH"][clamp(Math.round(state.quality), 0, 2)]);
+    if (id === "bypass") return t(state.bypass >= 0.5 ? "ON" : "OFF");
     return formatValue(id, state[id]);
   }
 
@@ -892,7 +899,7 @@
     const modeIndex = clamp(Math.round(state.mode), 0, modes.length - 1);
     const info = modes[modeIndex] || {};
     const used = new Set(info.uses || []);
-    const description = info.description || modeNames[modeIndex];
+    const description = t(info.description || modeNames[modeIndex]);
     const describedText = `${modeNames[modeIndex]}: ${description}`;
     const pitchMapActive = modeIndex === 23;
 
@@ -905,7 +912,7 @@
       const enabled = used.has(id);
       if (wrapper) {
         wrapper.classList.toggle("is-inactive", !enabled);
-        wrapper.title = info.tooltips && info.tooltips[id] ? info.tooltips[id] : defaultControlTooltips[id];
+        wrapper.title = t(info.tooltips && info.tooltips[id] ? info.tooltips[id] : defaultControlTooltips[id]);
       }
       if (input) input.disabled = !enabled;
       if (!enabled) endGesture(id);
@@ -921,11 +928,11 @@
       if (!pitchMapActive) endGesture(id);
     });
 
-    document.getElementById("shiftHzLabel").textContent = info.shift || "SHIFT";
-    document.getElementById("scaleLabel").textContent = info.scale || "SCALE";
-    document.getElementById("pivotHzLabel").textContent = info.pivot || "PIVOT";
-    document.getElementById("amountLabel").textContent = info.amount || "AMOUNT";
-    document.getElementById("widthQLabel").textContent = info.width || "WIDTH/Q";
+    document.getElementById("shiftHzLabel").textContent = t(info.shift || "SHIFT");
+    document.getElementById("scaleLabel").textContent = t(info.scale || "SCALE");
+    document.getElementById("pivotHzLabel").textContent = t(info.pivot || "PIVOT");
+    document.getElementById("amountLabel").textContent = t(info.amount || "AMOUNT");
+    document.getElementById("widthQLabel").textContent = t(info.width || "WIDTH/Q");
     renderParameter("shiftHz");
     updateFrequencyGuides();
   }
@@ -945,7 +952,7 @@
   }
 
   function updateAnalyzerArrangement() {
-    const layout = ["stack", "overlay", "split"].includes(analyzerLayoutSelect.value) ? analyzerLayoutSelect.value : "stack";
+    const layout = ["stack", "overlay", "split"].includes(analyzerLayoutSelect.value) ? analyzerLayoutSelect.value : "overlay";
     const targetClass = `layout-${layout}`;
     const currentClass = ["layout-stack", "layout-overlay", "layout-split"].find((name) => analyzer.classList.contains(name));
     analyzerLayoutSelect.value = layout;
@@ -986,7 +993,7 @@
     pivotGuide.style.top = `${pivotPosition * 100}%`;
     pivotGuide.style.display = pitchMapActive ? "none" : "block";
     const pivotLabel = modeIndex === 9 ? "REFLECT" : (glitchActive ? "BAND CENTER" : "PIVOT");
-    document.getElementById("pivotGuideLabel").textContent = `${pivotLabel} ${formatFrequency(state.pivotHz)}`;
+    document.getElementById("pivotGuideLabel").textContent = `${t(pivotLabel)} ${formatFrequency(state.pivotHz)}`;
 
     glitchSelection.hidden = !glitchActive;
     if (glitchActive) {
@@ -1003,14 +1010,14 @@
       glitchSelection.style.height = `${Math.max(0.3, bottom - top)}%`;
       glitchSelection.dataset.lowHz = String(Math.round(lowHz));
       glitchSelection.dataset.highHz = String(Math.round(highHz));
-      glitchSelectionLabel.textContent = `GLITCH BAND ${formatFrequency(lowHz)}-${formatFrequency(highHz)}`;
+      glitchSelectionLabel.textContent = `${t("GLITCH BAND")} ${formatFrequency(lowHz)}-${formatFrequency(highHz)}`;
     }
 
     pitchMapReadout.hidden = !pitchMapActive;
     if (pitchMapActive) {
       const root = pitchRootNames[clamp(Math.round(state.pitchRoot), 0, pitchRootNames.length - 1)];
       const scaleName = pitchScaleNames[clamp(Math.round(state.pitchScale), 0, pitchScaleNames.length - 1)];
-      pitchMapReadout.value = `PITCH MAP  ${root} ${scaleName}`;
+      pitchMapReadout.value = `Pitch Map  ${root} ${t(scaleName)}`;
       pitchMapReadout.textContent = pitchMapReadout.value;
     }
 
@@ -1200,9 +1207,10 @@
     const count = Math.min(pointCount, payload.input.length, payload.output.length);
     if (count < 2) return false;
     for (let index = 0; index < pointCount; index += 1) {
-      const sourceIndex = Math.min(count - 1, Math.round(index / (pointCount - 1) * (count - 1)));
-      const inputDb = Number(payload.input[sourceIndex]);
-      const outputDb = Number(payload.output[sourceIndex]);
+      const position = index / (pointCount - 1) * (count - 1);
+      const low = Math.floor(position), high = Math.min(count - 1, low + 1), fraction = position - low;
+      const inputDb = Number(payload.input[low]) * (1 - fraction) + Number(payload.input[high]) * fraction;
+      const outputDb = Number(payload.output[low]) * (1 - fraction) + Number(payload.output[high]) * fraction;
       analyzerData.input[index] = Number.isFinite(inputDb) ? inputDb : -96;
       analyzerData.output[index] = Number.isFinite(outputDb) ? outputDb : -96;
     }
@@ -1280,7 +1288,7 @@
 
   function captureWaterfallHistoryRow() {
     for (let index = 0; index < pointCount; index += 1)
-      waterfallHistoryRowScratch[index] = encodeWaterfallDb(analyzerData.output[index]);
+      waterfallHistoryRowScratch[index] = encodeWaterfallDb(backend && receivedDedicatedWaterfall ? waterfallData[index] : analyzerData.output[index]);
   }
 
   function storeWaterfallHistoryRow(markerIndex = 0) {
@@ -1334,7 +1342,8 @@
       const endX = Math.min(width, startX + columnWidth);
       for (let y = 0; y < height; y += 1) {
         const bin = Math.round((1 - y / Math.max(1, height - 1)) * (pointCount - 1));
-        writeHeatPixelFromEncoded(heatPixelScratch, 0, waterfallHistory[historyOffset + bin], colourTable);
+        const encoded = waterfallHistory[historyOffset + bin];
+        writeHeatPixelFromEncoded(heatPixelScratch, 0, encoded, colourTable);
         for (let x = startX; x < endX; x += 1) {
           const offset = (y * width + x) * 4;
           data[offset] = heatPixelScratch[0];
@@ -1439,7 +1448,7 @@
     context.drawImage(waterfallCanvas, shift, 0, width - shift, height, 0, 0, width - shift, height);
     for (let y = 0; y < height; y += 1) {
       const frequency = 1 - y / Math.max(1, height - 1);
-      context.fillStyle = heatColour(sampleAnalyzerBin(analyzerData.output, frequency));
+      context.fillStyle = heatColour(sampleAnalyzerBin(backend && receivedDedicatedWaterfall ? waterfallData : analyzerData.output, frequency));
       context.fillRect(width - shift, y, shift, 1);
     }
     advanceWaterfallEventTrack(columns, markerIndex);
@@ -1639,7 +1648,7 @@
         lastPreviewUpdate = now;
         lastAnalyzerFrameTime = now;
       }
-    } else if (lastAnalyzerFrameTime === null || now - lastAnalyzerFrameTime > 250) {
+    } else if ((receivedDedicatedWaterfall ? lastWaterfallFrameTime === null || now - lastWaterfallFrameTime > 250 : lastAnalyzerFrameTime === null || now - lastAnalyzerFrameTime > 250)) {
       resetWaterfallClock(now);
       return;
     }
@@ -1820,7 +1829,7 @@
   analyzerLayoutSelect.addEventListener("change", updateAnalyzerArrangement);
   analyzer.dataset.waterfallSpeed = `${waterfallSpeedMultiplier}x`;
   analyzer.dataset.waterfallColumnsPerSecond = String(15 * waterfallSpeedMultiplier);
-  analyzer.dataset.layout = "stack";
+  analyzer.dataset.layout = "overlay";
   waterfallCanvas.dataset.advanceCount = String(waterfallAdvanceCount);
   waterfallCanvas.dataset.fullRenderCount = String(waterfallFullRenderCount);
   waterfallCanvas.dataset.parameterMarkers = "none";
@@ -1828,6 +1837,132 @@
   updateWaterfallVisualProfile(waterfallVisualSelect.value, false);
   installNativeSurfaceGuards();
   syncCompactWorkspace(false);
+
+
+  // Presets are owned by the native processor; the browser only presents commands.
+  const presetSelect = document.getElementById("presetSelect");
+  const presetMenu = document.getElementById("presetMenu");
+  const presetDialog = document.getElementById("presetDialog");
+  const presetName = document.getElementById("presetName");
+  const presetRequests = new Map();
+  let presetRequestId = 0;
+  let presetState = {id: "init", name: "Init", dirty: false, entries: [{id: "init", name: "Init"}]};
+  let presetBusy = false;
+  let noticeTimer;
+  function renderPresetState(payload = {}) {
+    presetState = {...presetState, ...payload};
+    const entries = [...presetState.entries];
+    if (!entries.some(entry => entry.id === presetState.id)) entries.push({id: presetState.id, name: presetState.name});
+    presetSelect.replaceChildren(...entries.map(entry => {
+      const option = document.createElement("option");
+      option.value = entry.id;
+      option.textContent = entry.id === "init" ? t("Init") : entry.name;
+      return option;
+    }));
+    presetSelect.value = presetState.id;
+    presetSelect.title = (presetState.id === "init" ? t("Init") : presetState.name) + (presetState.dirty ? ` · ${t("Unsaved changes")}` : "");
+    document.getElementById("presetDirty").hidden = !presetState.dirty;
+  }
+  function showPresetNotice(message) {
+    const notice = document.getElementById("presetNotice");
+    notice.textContent = t(message);
+    notice.hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { notice.hidden = true; }, 6000);
+  }
+  function presetCommand(action, extra = {}) {
+    if (!backend) { showPresetNotice("This action is available in the installed plugin."); return Promise.resolve(false); }
+    endAllGestures();
+    return new Promise(resolve => {
+      const requestId = ++presetRequestId;
+      presetRequests.set(requestId, resolve);
+      backend.emitEvent("presetCommand", {action, requestId, language: window.FlipShiftI18n.language, ...extra});
+    });
+  }
+  function askPreset(kind) {
+    endAllGestures();
+    const naming = kind === "name";
+    document.getElementById("presetDialogTitle").textContent = t(naming ? "Save as…" : "Unsaved changes");
+    document.getElementById("presetDialogMessage").textContent = t(naming ? "Enter a name for this preset." : "Save changes before switching?");
+    presetName.hidden = !naming;
+    presetName.required = naming;
+    document.getElementById("presetNameLabel").hidden = !naming;
+    document.getElementById("presetDiscard").hidden = naming;
+    presetName.value = presetState.id === "init" ? "" : presetState.name;
+    presetName.setCustomValidity("");
+    const focusBefore = document.activeElement;
+    return new Promise(resolve => {
+      presetDialog.addEventListener("close", () => {
+        const choice = presetDialog.returnValue;
+        if (focusBefore && focusBefore.isConnected) focusBefore.focus({preventScroll: true});
+        resolve({choice, name: presetName.value.trim()});
+      }, {once: true});
+      presetDialog.returnValue = "cancel";
+      presetDialog.showModal();
+      if (naming) { presetName.focus(); presetName.select(); }
+    });
+  }
+  presetName.addEventListener("input", () => presetName.setCustomValidity(presetName.value.trim() ? "" : t("Enter a name for this preset.")));
+  async function savePreset(asNew = false) {
+    const naming = asNew || presetState.id === "init";
+    const answer = naming ? await askPreset("name") : {choice: "save", name: presetState.name};
+    if (answer.choice !== "save" || !answer.name) return false;
+    const ok = await presetCommand(naming ? "saveAs" : "save", {name: answer.name});
+    if (ok) showPresetNotice("Saved");
+    return ok;
+  }
+  async function beforePresetSwitch() {
+    if (!presetState.dirty) return true;
+    const answer = await askPreset("dirty");
+    if (answer.choice === "discard") return true;
+    if (answer.choice === "save") return savePreset();
+    return false;
+  }
+  async function runPresetAction(action, id) {
+    if (presetBusy) return;
+    presetBusy = true;
+    presetMenu.open = false;
+    presetSelect.disabled = true;
+    try {
+      if (!backend) { showPresetNotice("This action is available in the installed plugin."); return; }
+      if (action === "save" || action === "saveAs") await savePreset(action === "saveAs");
+      else if (action === "load" || action === "import") {
+        if (await beforePresetSwitch()) {
+          const ok = await presetCommand(action, {id});
+          if (ok && action === "import") showPresetNotice("Imported");
+        }
+      } else if (action === "export" && await presetCommand("export")) showPresetNotice("Exported");
+    } finally {
+      presetBusy = false;
+      presetSelect.disabled = false;
+      renderPresetState();
+    }
+  }
+  presetSelect.addEventListener("change", () => { const id = presetSelect.value; renderPresetState(); runPresetAction("load", id); });
+  presetMenu.addEventListener("toggle", () => { if (presetMenu.open && backend && !presetBusy) presetCommand("list"); });
+  document.querySelectorAll("[data-preset-action]").forEach(button => button.addEventListener("click", () => runPresetAction(button.dataset.presetAction)));
+  document.addEventListener("pointerdown", event => { if (!presetMenu.contains(event.target)) presetMenu.open = false; });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && presetMenu.open) { presetMenu.open = false; presetMenu.querySelector("summary").focus(); }
+  });
+  document.getElementById("languageSelect").addEventListener("change", event => {
+    window.FlipShiftI18n.apply(event.target.value);
+    document.getElementById("bridgeStatus").textContent = t(backend ? "NATIVE" : "PREVIEW");
+    Object.keys(state).forEach(renderParameter);
+    updateModeControls();
+    renderPresetState();
+  });
+  renderPresetState();
+  if (backend) {
+    listenerTokens.push(backend.addEventListener("presetState", renderPresetState));
+    listenerTokens.push(backend.addEventListener("presetResult", payload => {
+      const resolve = presetRequests.get(payload.requestId);
+      if (!resolve) return;
+      presetRequests.delete(payload.requestId);
+      if (!payload.ok && payload.error !== "preset.cancelled") showPresetNotice(payload.error);
+      resolve(Boolean(payload.ok));
+    }));
+  }
 
   Object.keys(state).forEach(renderParameter);
   updateModeControls();
@@ -1843,7 +1978,7 @@
     lastAnalyzerFrameTime = initialTime;
     window.requestAnimationFrame(() => drawVisualFrame(initialTime, false));
   } else {
-    document.getElementById("bridgeStatus").textContent = "NATIVE";
+    document.getElementById("bridgeStatus").textContent = t("NATIVE");
     listenerTokens.push(backend.addEventListener("parameterState", (payload) => {
       if (!payload || !payload.values) return;
       state.sampleRate = Number(payload.sampleRate) || state.sampleRate;
@@ -1854,6 +1989,16 @@
       updateRateReadout();
       updateModeControls();
       updateFrequencyGuides();
+    }));
+    listenerTokens.push(backend.addEventListener("waterfallFrame", (payload) => {
+      if (state.freeze >= 0.5 || !payload || !Array.isArray(payload.output) || payload.output.length !== pointCount) return;
+      for (let i = 0; i < pointCount; ++i) {
+        const value = Number(payload.output[i]);
+        waterfallData[i] = Number.isFinite(value) ? clamp(value, -96, 12) : -96;
+      }
+      receivedDedicatedWaterfall = true;
+      lastWaterfallFrameTime = window.performance.now();
+      waterfallCanvas.dataset.analysisFftSize = String(payload.fftSize);
     }));
     listenerTokens.push(backend.addEventListener("analyzerFrame", (payload) => {
       if (state.freeze >= 0.5) return;

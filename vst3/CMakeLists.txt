@@ -7,6 +7,9 @@ include(CTest)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 
 option(OPENFAD_ENABLE_LTO "Enable link-time optimisation for the plugin target" OFF)
 option(OPENFAD_BUILD_AUV3 "Build the AUv3 app extension and its standalone container on Apple platforms" ON)
@@ -36,7 +39,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
 
     set(OPENFAD_PLUGIN_FORMATS AUv3 Standalone)
 elseif(APPLE AND OPENFAD_BUILD_AUV3)
-    set(OPENFAD_PLUGIN_FORMATS VST3 AUv3 Standalone)
+    set(OPENFAD_PLUGIN_FORMATS VST3 AU AUv3 Standalone)
+elseif(APPLE)
+    set(OPENFAD_PLUGIN_FORMATS VST3 AU)
 else()
     set(OPENFAD_PLUGIN_FORMATS VST3)
 endif()
@@ -77,6 +82,7 @@ juce_add_binary_data(OpenFADFlipShiftWebUI
         WebUI/index.html
         WebUI/styles.css
         WebUI/app.js
+        WebUI/i18n.js
 )
 
 target_sources(OpenFADFlipShift

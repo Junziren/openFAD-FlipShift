@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PresetFormat.h"
 
 #include <JuceHeader.h>
 #include <cmath>
@@ -291,6 +292,12 @@ const juce::String installProbeScript = R"JS(
     for (const value of input) if (Number.isFinite(Number(value))) probe.maxInputDb = Math.max(probe.maxInputDb, Number(value));
     for (const value of output) if (Number.isFinite(Number(value))) probe.maxOutputDb = Math.max(probe.maxOutputDb, Number(value));
   });
+  probe.waterfallToken = backend.addEventListener("waterfallFrame", (payload) => {
+    probe.waterfallEvents = (probe.waterfallEvents || 0) + 1;
+    probe.waterfallBins = payload.output.length;
+    probe.waterfallFftSize = payload.fftSize;
+    probe.waterfallPeak = Math.max(...payload.output);
+  });
   probe.parameterToken = backend.addEventListener("parameterState", (payload) => {
     probe.parameterEventCount += 1;
     probe.lastParameterState = payload && payload.values ? { ...payload.values } : {};
@@ -398,6 +405,10 @@ const juce::String snapshotScript = R"JS(
   }
 
   return JSON.stringify({
+    waterfallEvents: Number(probe.waterfallEvents || 0),
+    waterfallBins: Number(probe.waterfallBins || 0),
+    waterfallFftSize: Number(probe.waterfallFftSize || 0),
+    waterfallPeak: Number(probe.waterfallPeak ?? -96),
     eventCount: Number(probe.eventCount || 0),
     inputCount: Number(probe.inputCount || 0),
     outputCount: Number(probe.outputCount || 0),
@@ -451,6 +462,64 @@ int main()
     try
     {
         openfad::flipshift::OpenFADFlipShiftAudioProcessor processor;
+        using namespace openfad::flipshift;
+        expectations.expect(*processor.getState().getRawParameterValue(ParameterIDs::quality) == 2.0f,
+                            "new processors default to High FFT");
+        const auto initial = processor.initialPreset();
+        auto named = initial.clone();
+        named.getDynamicObject()->setProperty("name", juce::String::fromUTF8("中文预设测试"));
+        named["parameters"].getDynamicObject()->setProperty(ParameterIDs::shiftHz, 327.25);
+        named["parameters"].getDynamicObject()->setProperty(ParameterIDs::quality, 1);
+        const auto testId = juce::Uuid().toString().removeCharacters("-");
+        processor.getState().getParameter(ParameterIDs::bypass)->setValueNotifyingHost(1.0f);
+        processor.getState().getParameter(ParameterIDs::freeze)->setValueNotifyingHost(1.0f);
+        expectations.expect(processor.applyPreset(named, testId).wasOk(), "valid preset applies");
+        expectations.expect(std::abs(*processor.getState().getRawParameterValue(ParameterIDs::shiftHz) - 327.25f) < 0.02f
+            && *processor.getState().getRawParameterValue(ParameterIDs::quality) == 1.0f,
+            "preset restores physical values and quality");
+        expectations.expect(*processor.getState().getRawParameterValue(ParameterIDs::bypass) == 1.0f
+            && *processor.getState().getRawParameterValue(ParameterIDs::freeze) == 0.0f,
+            "preset preserves bypass and releases transient freeze");
+        expectations.expect(!static_cast<bool>(processor.presetStatus()["dirty"]), "loaded preset is clean");
+        auto broken = named.clone();
+        broken["parameters"].getDynamicObject()->setProperty(ParameterIDs::shiftHz, 200.0);
+        broken["parameters"].getDynamicObject()->setProperty(ParameterIDs::pitchRoot, 12);
+        expectations.expect(processor.applyPreset(broken, "init").failed()
+            && std::abs(*processor.getState().getRawParameterValue(ParameterIDs::shiftHz) - 327.25f) < 0.02f,
+            "invalid trailing field leaves all current parameters unchanged");
+        broken = named.clone(); broken.getDynamicObject()->setProperty("version", 2);
+        expectations.expect(processor.applyPreset(broken, "init").failed(), "future preset version rejected");
+        broken = named.clone(); broken["parameters"].getDynamicObject()->removeProperty(ParameterIDs::scale);
+        expectations.expect(processor.applyPreset(broken, "init").failed(), "missing field rejected");
+        broken = named.clone(); broken["parameters"].getDynamicObject()->setProperty(ParameterIDs::amount, std::numeric_limits<double>::infinity());
+        expectations.expect(processor.applyPreset(broken, "init").failed(), "non-finite field rejected");
+        broken = named.clone(); broken["parameters"].getDynamicObject()->setProperty(ParameterIDs::mode, 1.5);
+        expectations.expect(processor.applyPreset(broken, "init").failed(), "fractional enum rejected");
+        const auto file = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile(testId + ".flipshift");
+        expectations.expect(presets::write(file, named).wasOk(), "atomic UTF-8 preset save succeeds");
+        juce::var reread;
+        expectations.expect(presets::read(file, reread, processor.getState()).wasOk()
+            && reread["name"].toString() == named["name"].toString(), "preset JSON round trip preserves Chinese names");
+        juce::MemoryBlock saved;
+        processor.getStateInformation(saved);
+        file.deleteFile();
+        processor.applyPreset(initial, "init");
+        processor.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+        expectations.expect(processor.presetStatus()["id"].toString() == testId
+            && *processor.getState().getRawParameterValue(ParameterIDs::quality) == 1.0f,
+            "DAW state recalls preset identity and saved quality without the preset file");
+        processor.getState().getParameter(ParameterIDs::mix)->setValueNotifyingHost(0.9f);
+        expectations.expect(static_cast<bool>(processor.presetStatus()["dirty"]), "host parameter change marks preset modified");
+        auto oldState = processor.getState().copyState();
+        oldState.removeProperty("flipshiftPreset", nullptr); oldState.removeProperty("flipshiftPresetId", nullptr);
+        oldState.setProperty("legacy", true, nullptr);
+        juce::MemoryBlock legacy;
+        juce::AudioProcessor::copyXmlToBinary(*oldState.createXml(), legacy);
+        processor.setStateInformation(legacy.getData(), static_cast<int>(legacy.getSize()));
+        expectations.expect(*processor.getState().getRawParameterValue(ParameterIDs::quality) == 1.0f,
+                            "legacy host state retains Normal quality");
+        processor.applyPreset(initial, "init");
+        processor.getState().getParameter(ParameterIDs::bypass)->setValueNotifyingHost(0.0f);
         processor.setPlayConfigDetails(2, 2, harnessSampleRate, blockSize);
         processor.prepareToPlay(harnessSampleRate, blockSize);
 
@@ -480,7 +549,7 @@ int main()
             if (readyState.has_value()
                 && boolProperty(*readyState, "ready")
                 && boolProperty(*readyState, "nativeBridge")
-                && stringProperty(*readyState, "bridgeStatus") == "NATIVE"
+                && stringProperty(*readyState, "bridgeStatus") == juce::String::fromUTF8("已连接")
                 && stringProperty(*readyState, "surfaceVisible") == "true")
                 break;
 
@@ -496,11 +565,40 @@ int main()
 
         expectations.expect(boolProperty(*readyState, "ready"), "embedded WebUI finished loading");
         expectations.expect(boolProperty(*readyState, "nativeBridge"), "JUCE native bridge exists in the actual WebView2 DOM");
-        expectations.expect(stringProperty(*readyState, "bridgeStatus") == "NATIVE", "frontend selected native mode rather than preview data");
+        expectations.expect(stringProperty(*readyState, "bridgeStatus") == juce::String::fromUTF8("已连接"), "frontend selected native mode rather than preview data");
         expectations.expect(stringProperty(*readyState, "surfaceVisible") == "true", "frontend received visible native-surface state");
         expectations.expect(stringProperty(*readyState, "visibilityState") == "visible", "WebView document is visible to requestAnimationFrame");
 
         javascriptError.clear();
+        const auto nativePresetStart = evaluateJson(*browser, R"JS((() => {
+          window.__presetTestResult = null;
+          window.__presetTestToken = window.__JUCE__.backend.addEventListener("presetResult", p => { window.__presetTestResult = p; });
+          window.__JUCE__.backend.emitEvent("presetCommand", {action: "saveAs", name: "Native bridge QA", requestId: 9901});
+          return JSON.stringify({sent: true});
+        })())JS", 2000, javascriptError);
+        pumpMessages(200);
+        const auto nativePresetResult = evaluateJson(*browser, "JSON.stringify(window.__presetTestResult || {})", 2000, javascriptError);
+        expectations.expect(nativePresetStart.has_value() && nativePresetResult.has_value()
+            && boolProperty(*nativePresetResult, "ok"), "real WebView preset command saves through the C++ bridge");
+        const auto savedPresetId = processor.presetStatus()["id"].toString();
+        expectations.expect(presets::validId(savedPresetId), "native save assigns a unique user preset id");
+        if (presets::validId(savedPresetId))
+        {
+            const auto savedFile = presets::directory().getChildFile(savedPresetId + ".flipshift");
+            juce::var savedDocument;
+            expectations.expect(presets::read(savedFile, savedDocument, processor.getState()).wasOk(),
+                                "native save creates a valid .flipshift JSON file");
+            processor.applyPreset(processor.initialPreset(), "init");
+            const auto loadScript = "(() => { window.__presetTestResult = null; window.__JUCE__.backend.emitEvent('presetCommand', {action:'load', id:'"
+                + savedPresetId + "', requestId:9902}); return JSON.stringify({sent:true}); })()";
+            evaluateJson(*browser, loadScript, 2000, javascriptError);
+            pumpMessages(200);
+            expectations.expect(processor.presetStatus()["id"].toString() == savedPresetId,
+                                "real WebView preset command reloads the saved file");
+            savedFile.deleteFile();
+        }
+        processor.applyPreset(processor.initialPreset(), "init");
+        pumpMessages(100);
         const auto uiContract = evaluateJson(*browser, uiContractScript, 2000, javascriptError);
         expectations.expect(uiContract.has_value(), "captured the PROCESS and Pitch Map option contract");
         if (!uiContract.has_value())
@@ -521,8 +619,8 @@ int main()
                                 && stringProperty(*uiContract, "lastPitchRoot") == "B",
                             "Pitch Map exposes all 12 chromatic root notes");
         expectations.expect(numberProperty(*uiContract, "pitchScaleOptionCount") == 2.0
-                                && stringProperty(*uiContract, "firstPitchScale") == "MAJOR"
-                                && stringProperty(*uiContract, "lastPitchScale") == "MINOR",
+                                && stringProperty(*uiContract, "firstPitchScale") == juce::String::fromUTF8("大调")
+                                && stringProperty(*uiContract, "lastPitchScale") == juce::String::fromUTF8("自然小调"),
                             "Pitch Map exposes major and natural-minor scale choices");
 
         javascriptError.clear();
@@ -566,10 +664,15 @@ int main()
 
         std::cout << "DOM diagnostics: " << juce::JSON::toString(*after, true) << '\n';
 
+        expectations.expect(numberProperty(*after, "waterfallEvents") >= 5
+                                && numberProperty(*after, "waterfallBins") == 1024
+                                && numberProperty(*after, "waterfallFftSize") == 8192
+                                && numberProperty(*after, "waterfallPeak") > -80,
+                            "Dedicated 8192-point output waterfall reaches native WebView");
         expectations.expect(eventCount >= 5.0, "C++ emitted at least five analyzerFrame events into WebView2");
-        expectations.expect(numberProperty(*after, "inputCount") == 192.0
-                                && numberProperty(*after, "outputCount") == 192.0,
-                            "analyzerFrame delivered both 192-point input and output arrays");
+        expectations.expect(numberProperty(*after, "inputCount") == 1024.0
+                                && numberProperty(*after, "outputCount") == 1024.0,
+                            "analyzerFrame delivered both 1024-point input and output arrays");
         expectations.expect(numberProperty(*after, "maxInputDb", -96.0) > -45.0,
                             "native analyzer input payload contains audible energy");
         expectations.expect(numberProperty(*after, "maxOutputDb", -96.0) > -45.0,
@@ -630,7 +733,7 @@ int main()
                                 && numberProperty(*pitchMapState, "pitchRootValue", -1.0) == 7.0
                                 && numberProperty(*pitchMapState, "pitchScaleValue", -1.0) == 1.0
                                 && stringProperty(*pitchMapState, "pitchRootText") == "G"
-                                && stringProperty(*pitchMapState, "pitchScaleText") == "MINOR",
+                                && stringProperty(*pitchMapState, "pitchScaleText") == juce::String::fromUTF8("自然小调"),
                             "Pitch Map selectors rendered the native G minor parameter state");
         expectations.expect(boolProperty(*pitchMapState, "axisHidden")
                                 && stringProperty(*pitchMapState, "axisAriaHidden") == "true"
@@ -640,7 +743,7 @@ int main()
                                 && !boolProperty(*pitchMapState, "pitchScaleDisabled"),
                             "Pitch Map module replaces AXIS and enables both pitch selectors");
         expectations.expect(!boolProperty(*pitchMapState, "pitchMapReadoutHidden")
-                                && stringProperty(*pitchMapState, "pitchMapReadoutText").containsIgnoreCase("G MINOR")
+                                && stringProperty(*pitchMapState, "pitchMapReadoutText").containsIgnoreCase(juce::String::fromUTF8("G 自然小调"))
                                 && boolProperty(*pitchMapState, "glitchSelectionHidden")
                                 && stringProperty(*pitchMapState, "pivotGuideDisplay") == "none",
                             "Pitch Map readout is visible while unrelated analyzer guides stay hidden");
@@ -685,13 +788,13 @@ int main()
                             "Glitch band overlay is visibly laid out over the waterfall");
         expectations.expect(std::abs(numberProperty(*glitchState, "glitchLowHz", -1.0) - 3000.0) <= 1.0
                                 && std::abs(numberProperty(*glitchState, "glitchHighHz", -1.0) - 5000.0) <= 1.0
-                                && stringProperty(*glitchState, "glitchLabel").containsIgnoreCase("GLITCH BAND"),
+                                && stringProperty(*glitchState, "glitchLabel").containsIgnoreCase(juce::String::fromUTF8("Glitch 选区")),
                             "Glitch overlay represents the expected 3-5 kHz band for centre 4 kHz and Q 2");
         expectations.expect(!boolProperty(*glitchState, "axisHidden")
                                 && boolProperty(*glitchState, "pitchMapModuleHidden")
                                 && boolProperty(*glitchState, "pitchMapReadoutHidden")
                                 && stringProperty(*glitchState, "pivotGuideDisplay") == "block"
-                                && stringProperty(*glitchState, "pivotGuideLabel").containsIgnoreCase("BAND CENTER"),
+                                && stringProperty(*glitchState, "pivotGuideLabel").containsIgnoreCase(juce::String::fromUTF8("频带中心")),
                             "Glitch restores AXIS and shows its explicit band-centre guide");
 
         window.setVisible(false);

@@ -308,8 +308,8 @@ void FlipShiftEngine::publishAnalyzer(const ChannelState& state)
         || generation != analyzerGeneration.load(std::memory_order_acquire))
         return;
 
-    analyzerWriteIndex = analyzerReadyIndex.exchange(analyzerWriteIndex, std::memory_order_acq_rel);
-    analyzerPublishedSequence.store(frame.sequence, std::memory_order_release);
+    analyzerWriteIndex = analyzerReadyIndex.exchange(analyzerWriteIndex | analyzerDirtyBit,
+                                                     std::memory_order_acq_rel) & analyzerIndexMask;
     analyzerHasData.store(true, std::memory_order_release);
 }
 
@@ -336,11 +336,10 @@ bool FlipShiftEngine::copyAnalyzerFrames(std::vector<float>& inputDb,
         || !analyzerHasData.load(std::memory_order_acquire))
         return false;
 
-    const auto publishedSequence = analyzerPublishedSequence.load(std::memory_order_acquire);
-    if (publishedSequence == static_cast<std::uint32_t>(sequence))
+    if ((analyzerReadyIndex.load(std::memory_order_acquire) & analyzerDirtyBit) == 0)
         return false;
 
-    analyzerReadIndex = analyzerReadyIndex.exchange(analyzerReadIndex, std::memory_order_acq_rel);
+    analyzerReadIndex = analyzerReadyIndex.exchange(analyzerReadIndex, std::memory_order_acq_rel) & analyzerIndexMask;
     const auto& frame = analyzerFrames[static_cast<size_t>(analyzerReadIndex)];
     const auto generation = analyzerGeneration.load(std::memory_order_acquire);
     if (frame.generation != generation

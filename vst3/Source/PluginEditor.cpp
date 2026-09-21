@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
+#include "PresetFormat.h"
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -42,7 +43,15 @@ juce::Array<juce::var> makeLogResampledArray(const std::vector<float>& values, i
         const auto low = juce::jlimit(0, static_cast<int>(values.size() - 1), static_cast<int>(sourcePosition));
         const auto high = juce::jmin(low + 1, static_cast<int>(values.size() - 1));
         const auto fraction = sourcePosition - static_cast<float>(low);
-        result.add(juce::jmap(fraction, values[static_cast<size_t>(low)], values[static_cast<size_t>(high)]));
+        auto magnitude = juce::jmap(fraction, values[static_cast<size_t>(low)], values[static_cast<size_t>(high)]);
+        // Preserve narrow peaks when several source bins fall into one display cell.
+        const auto nextUnit = juce::jmin(1.0f, (static_cast<float>(i) + 0.5f) / static_cast<float>(pointCount - 1));
+        const auto prevUnit = juce::jmax(0.0f, (static_cast<float>(i) - 0.5f) / static_cast<float>(pointCount - 1));
+        const auto from = static_cast<int>(std::ceil((std::pow(100.0f, prevUnit) - 1.0f) / 99.0f * lastIndex));
+        const auto to = static_cast<int>(std::floor((std::pow(100.0f, nextUnit) - 1.0f) / 99.0f * lastIndex));
+        for (auto bin = from; bin <= to; ++bin)
+            magnitude = juce::jmax(magnitude, values[static_cast<size_t>(juce::jlimit(0, static_cast<int>(lastIndex), bin))]);
+        result.add(magnitude);
     }
 
     return result;
@@ -93,7 +102,7 @@ OpenFADFlipShiftAudioProcessorEditor::OpenFADFlipShiftAudioProcessorEditor(OpenF
     setSize(1000, 650);
 
     audioProcessor.setAnalyzerConsumerActive(true);
-    browser.goToURL(juce::WebBrowserComponent::getResourceProviderRoot() + "index.html?v=7");
+    browser.goToURL(juce::WebBrowserComponent::getResourceProviderRoot() + "index.html?v=8");
     startTimerHz(30);
 }
 
@@ -101,6 +110,7 @@ OpenFADFlipShiftAudioProcessorEditor::~OpenFADFlipShiftAudioProcessorEditor()
 {
     stopTimer();
     audioProcessor.setAnalyzerConsumerActive(false);
+    audioProcessor.setWaterfallConsumerActive(false);
     endActiveParameterGestures();
 }
 
@@ -129,11 +139,13 @@ juce::WebBrowserComponent::Options OpenFADFlipShiftAudioProcessorEditor::makeBro
             lastParameterValues.fill(std::numeric_limits<float>::quiet_NaN());
             lastAnalyzerSequence = 0;
             syncNativeSurfaceState(true);
+            sendPresetState(true);
         })
         .withEventListener("parameterGesture", [this](const juce::var& payload)
         {
             handleParameterEvent(payload);
         })
+        .withEventListener("presetCommand", [this](const juce::var& payload) { handlePresetCommand(payload); })
         .withEventListener("openExternal", [](const juce::var& payload)
         {
             if (!payload.isObject())
@@ -163,7 +175,7 @@ OpenFADFlipShiftAudioProcessorEditor::getResource(const juce::String& url)
     if (requestedPath.isEmpty())
         requestedPath = "index.html";
 
-    static const juce::StringArray allowedResources { "index.html", "styles.css", "app.js" };
+    static const juce::StringArray allowedResources { "index.html", "styles.css", "app.js", "i18n.js" };
     if (!allowedResources.contains(requestedPath))
         return std::nullopt;
 
@@ -253,6 +265,8 @@ void OpenFADFlipShiftAudioProcessorEditor::timerCallback()
         return;
 
     sendParameterState(false);
+    sendPresetState();
+    sendWaterfallFrame();
     if (++analyzerTick % 2 == 0)
         sendAnalyzerFrame();
 }
@@ -296,11 +310,142 @@ void OpenFADFlipShiftAudioProcessorEditor::sendAnalyzerFrame()
             analyzerInputScratch, analyzerOutputScratch, lastAnalyzerSequence))
         return;
 
-    constexpr auto displayPoints = 192;
+    constexpr auto displayPoints = 1024;
     juce::DynamicObject::Ptr payload = new juce::DynamicObject();
     payload->setProperty("input", makeLogResampledArray(analyzerInputScratch, displayPoints));
     payload->setProperty("output", makeLogResampledArray(analyzerOutputScratch, displayPoints));
     browser.emitEventIfBrowserIsVisible("analyzerFrame", juce::var(payload.get()));
+}
+
+
+void OpenFADFlipShiftAudioProcessorEditor::sendWaterfallFrame()
+{
+    if (!isVisible() || !audioProcessor.copyWaterfallFrame(waterfallScratch)) return;
+    auto* payload = new juce::DynamicObject();
+    payload->setProperty("output", makeLogResampledArray(waterfallScratch, 1024));
+    payload->setProperty("fftSize", WaterfallAnalyzer::fftSize);
+    browser.emitEventIfBrowserIsVisible("waterfallFrame", juce::var(payload));
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::sendPresetState(bool refreshList)
+{
+    if (!frontendReady || !isShowing()) return;
+    auto status = audioProcessor.presetStatus();
+    const auto encoded = juce::JSON::toString(status, true);
+    if (!refreshList && encoded == lastPresetStatus) return;
+    lastPresetStatus = encoded;
+    if (refreshList)
+    {
+        juce::Array<juce::var> entries;
+        auto* initial = new juce::DynamicObject();
+        initial->setProperty("id", "init");
+        initial->setProperty("name", "Init");
+        entries.add(juce::var(initial));
+        auto files = presets::directory().findChildFiles(juce::File::findFiles, false, "*.flipshift");
+        for (const auto& file : files)
+        {
+            const auto id = file.getFileNameWithoutExtension();
+            juce::var document;
+            if (!presets::validId(id) || presets::read(file, document, audioProcessor.getState()).failed()) continue;
+            auto* entry = new juce::DynamicObject();
+            entry->setProperty("id", id);
+            entry->setProperty("name", document["name"]);
+            entries.add(juce::var(entry));
+        }
+        status.getDynamicObject()->setProperty("entries", entries);
+    }
+    browser.emitEventIfBrowserIsVisible("presetState", status);
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::finishPresetCommand(int requestId, const juce::Result& result)
+{
+    sendParameterState(true);
+    sendPresetState(true);
+    auto* response = new juce::DynamicObject();
+    response->setProperty("requestId", requestId);
+    response->setProperty("ok", result.wasOk());
+    response->setProperty("error", result.getErrorMessage());
+    pendingPresetResults.add(juce::var(response));
+    flushPresetResults();
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::flushPresetResults()
+{
+    if (!frontendReady || !isShowing()) return;
+    for (const auto& response : pendingPresetResults)
+        browser.emitEventIfBrowserIsVisible("presetResult", response);
+    pendingPresetResults.clear();
+}
+
+void OpenFADFlipShiftAudioProcessorEditor::handlePresetCommand(const juce::var& payload)
+{
+    if (!payload.isObject()) return;
+    const auto requestId = static_cast<int>(payload["requestId"]);
+    const auto action = payload["action"].toString();
+    if (presetChooser) { finishPresetCommand(requestId, juce::Result::fail("preset.busy")); return; }
+    if (action == "list") { finishPresetCommand(requestId, juce::Result::ok()); return; }
+    endActiveParameterGestures();
+    if (action == "load")
+    {
+        const auto id = payload["id"].toString();
+        juce::var document;
+        auto result = juce::Result::ok();
+        if (id == "init") document = audioProcessor.initialPreset();
+        else if (presets::validId(id)) result = presets::read(presets::directory().getChildFile(id + ".flipshift"), document, audioProcessor.getState());
+        else result = juce::Result::fail("preset.read");
+        if (result.wasOk()) result = audioProcessor.applyPreset(document, id);
+        finishPresetCommand(requestId, result);
+        return;
+    }
+    if (action == "save" || action == "saveAs")
+    {
+        const auto name = payload["name"].toString().trim();
+        auto document = audioProcessor.capturePreset(name);
+        auto result = presets::validate(document, audioProcessor.getState());
+        auto id = audioProcessor.presetStatus()["id"].toString();
+        if (action == "saveAs" || !presets::validId(id)) id = juce::Uuid().toString().removeCharacters("-");
+        if (result.wasOk()) result = presets::write(presets::directory().getChildFile(id + ".flipshift"), document);
+        if (result.wasOk()) audioProcessor.rememberPreset(document, id);
+        finishPresetCommand(requestId, result);
+        return;
+    }
+    if (action != "import" && action != "export") { finishPresetCommand(requestId, juce::Result::fail("preset.format")); return; }
+    const auto exporting = action == "export";
+    const auto snapshot = audioProcessor.capturePreset(audioProcessor.presetStatus()["name"].toString());
+    const auto chinese = payload["language"].toString() != "en";
+    const auto title = exporting ? (chinese ? juce::String::fromUTF8("导出 FlipShift 预设") : "Export FlipShift preset")
+                                 : (chinese ? juce::String::fromUTF8("导入 FlipShift 预设") : "Import FlipShift preset");
+    presetChooser = std::make_unique<juce::FileChooser>(title,
+        exporting ? juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("Preset.flipshift") : presets::directory(),
+        exporting ? "*.flipshift" : "*.flipshift;*.json");
+    const auto flags = exporting ? juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting
+                                 : juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    const juce::Component::SafePointer<OpenFADFlipShiftAudioProcessorEditor> safeThis(this);
+    presetChooser->launchAsync(flags, [safeThis, requestId, exporting, snapshot](const juce::FileChooser& chooser)
+    {
+        if (safeThis == nullptr) return;
+        auto file = chooser.getResult();
+        auto result = juce::Result::fail("preset.cancelled");
+        if (file != juce::File())
+        {
+            if (exporting)
+            {
+                // Keep the exact native-dialog path, so its overwrite confirmation stays authoritative.
+                if (file.getFileExtension().isEmpty()) file = file.withFileExtension(".flipshift");
+                result = presets::write(file, snapshot);
+            }
+            else
+            {
+                juce::var document;
+                result = presets::read(file, document, safeThis->audioProcessor.getState());
+                const auto id = juce::Uuid().toString().removeCharacters("-");
+                if (result.wasOk()) result = presets::write(presets::directory().getChildFile(id + ".flipshift"), document);
+                if (result.wasOk()) result = safeThis->audioProcessor.applyPreset(document, id);
+            }
+        }
+        safeThis->finishPresetCommand(requestId, result);
+        juce::MessageManager::callAsync([safeThis] { if (safeThis != nullptr) safeThis->presetChooser.reset(); });
+    });
 }
 
 void OpenFADFlipShiftAudioProcessorEditor::paint(juce::Graphics& graphics)
@@ -326,6 +471,7 @@ void OpenFADFlipShiftAudioProcessorEditor::parentHierarchyChanged()
 void OpenFADFlipShiftAudioProcessorEditor::syncNativeSurfaceState(bool forceFrontendSync)
 {
     const auto visible = isVisible();
+    audioProcessor.setWaterfallConsumerActive(visible);
     const auto visibilityChanged = lastSurfaceVisible != visible;
     lastSurfaceVisible = visible;
     if (!visibilityChanged && !forceFrontendSync)
@@ -348,6 +494,8 @@ void OpenFADFlipShiftAudioProcessorEditor::syncNativeSurfaceState(bool forceFron
     {
         sendParameterState(true);
         sendAnalyzerFrame();
+        sendPresetState(true);
+        flushPresetResults();
     }
 }
 } // namespace openfad::flipshift

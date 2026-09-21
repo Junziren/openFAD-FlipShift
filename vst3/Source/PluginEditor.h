@@ -28,12 +28,22 @@ private:
     static ResourceResult getResource(const juce::String& url);
     static juce::String getMimeType(const juce::String& path);
 
+    void handlePresetCommand(const juce::var& payload);
+    void sendPresetState(bool refreshList = false);
+    void flushPresetResults();
+    juce::Array<juce::var> pendingPresetResults;
+    void finishPresetCommand(int requestId, const juce::Result& result);
+    std::unique_ptr<juce::FileChooser> presetChooser;
+    juce::String lastPresetStatus;
+
     void handleParameterEvent(const juce::var& payload);
     void endActiveParameterGestures();
     void syncNativeSurfaceState(bool forceFrontendSync = false);
     void timerCallback() override;
     void sendParameterState(bool force);
     void sendAnalyzerFrame();
+    void sendWaterfallFrame();
+    std::vector<float> waterfallScratch;
 
     OpenFADFlipShiftAudioProcessor& audioProcessor;
     bool frontendReady = false;

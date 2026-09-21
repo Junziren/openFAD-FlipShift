@@ -1,9 +1,11 @@
 #include "DSP/FlipShiftEngine.h"
+#include "DSP/WaterfallAnalyzer.h"
 #include <JuceHeader.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -776,12 +778,32 @@ void requireConcurrentAnalyzerSnapshots()
     std::thread producer([&]
     {
         juce::AudioBuffer<float> buffer(1, blockSize);
+        auto observed = 0;
         for (int block = 0; block < 3000 && !failed.load(std::memory_order_relaxed); ++block)
         {
             auto* data = buffer.getWritePointer(0);
             for (int sample = 0; sample < blockSize; ++sample)
                 data[sample] = sine(440.0f, block * blockSize + sample) * 0.25f;
             engine.process(buffer, parameters);
+            // Give the consumer a guaranteed observation opportunity every 256
+            // blocks. A loaded CI runner may otherwise schedule the entire
+            // offline producer before the consumer gets ten time slices.
+            if ((block + 1) % 256 == 0)
+            {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                while (snapshotsRead.load(std::memory_order_acquire) == observed
+                       && !failed.load(std::memory_order_acquire))
+                {
+                    if (std::chrono::steady_clock::now() >= deadline)
+                    {
+                        std::cerr << "Analyzer consumer made no progress\n";
+                        failed.store(true, std::memory_order_release);
+                        break;
+                    }
+                    std::this_thread::yield();
+                }
+                observed = snapshotsRead.load(std::memory_order_acquire);
+            }
         }
         producerFinished.store(true, std::memory_order_release);
     });
@@ -795,6 +817,7 @@ void requireConcurrentAnalyzerSnapshots()
 
         while (!producerFinished.load(std::memory_order_acquire) || idlePasses < 2000)
         {
+            const auto previousSequence = sequence;
             if (!engine.copyAnalyzerFrames(input, output, sequence))
             {
                 ++idlePasses;
@@ -803,8 +826,10 @@ void requireConcurrentAnalyzerSnapshots()
             }
 
             idlePasses = 0;
-            if (input.size() != 513 || output.size() != input.size() || sequence == 0)
+            if (input.size() != 513 || output.size() != input.size() || sequence <= previousSequence)
             {
+                std::cerr << "Analyzer snapshot shape/sequence: " << input.size() << ", "
+                          << output.size() << ", " << previousSequence << " -> " << sequence << '\n';
                 failed.store(true, std::memory_order_release);
                 break;
             }
@@ -814,6 +839,8 @@ void requireConcurrentAnalyzerSnapshots()
                 if (!std::isfinite(input[index]) || !std::isfinite(output[index])
                     || std::abs(input[index] - output[index]) > 1.0e-6f)
                 {
+                    std::cerr << "Analyzer snapshot bin " << index << ": "
+                              << input[index] << " / " << output[index] << '\n';
                     failed.store(true, std::memory_order_release);
                     break;
                 }
@@ -830,7 +857,8 @@ void requireConcurrentAnalyzerSnapshots()
 
     if (failed.load(std::memory_order_acquire) || snapshotsRead.load(std::memory_order_relaxed) < 10)
     {
-        std::cerr << "Concurrent analyzer snapshot stress failed\n";
+        std::cerr << "Concurrent analyzer snapshot stress failed, snapshots="
+                  << snapshotsRead.load() << '\n';
         std::exit(1);
     }
 
@@ -864,10 +892,63 @@ void requirePhaseStability()
 
     std::cout << "Long-running phase stability ok\n";
 }
+void requireWaterfallDetail()
+{
+    WaterfallAnalyzer analyzer;
+    analyzer.prepare(48000.0);
+    analyzer.setEnabled(true);
+    juce::AudioBuffer<float> audio(2, WaterfallAnalyzer::fftSize);
+    for (int i = 0; i < audio.getNumSamples(); ++i)
+    {
+        const auto phase = juce::MathConstants<float>::twoPi * static_cast<float>(i) / WaterfallAnalyzer::fftSize;
+        const auto value = 0.25f * (std::sin(64 * phase) + std::sin(68 * phase));
+        audio.setSample(0, i, value);
+        audio.setSample(1, i, -value);
+    }
+    const auto original = audio.getSample(0, 100);
+    analyzer.push(audio);
+    std::vector<float> spectrum;
+    const auto check = [](bool ok, const char* message) {
+        if (!ok) { std::cerr << "Waterfall: " << message << '\n'; std::exit(1); }
+    };
+    check(analyzer.read(spectrum), "missing frame");
+    check(spectrum.size() == WaterfallAnalyzer::bins, "wrong resolution");
+    check(spectrum[64] > -13 && spectrum[68] > -13, "anti-phase stereo lost");
+    check(spectrum[66] < std::min(spectrum[64], spectrum[68]) - 35, "nearby tones not resolved");
+    check(audio.getSample(0, 100) == original, "capture modified audio");
+    check(!analyzer.read(spectrum), "duplicate frame");
+    analyzer.push(audio);
+    analyzer.invalidate();
+    check(!analyzer.read(spectrum), "stale reset frame");
+    juce::AudioBuffer<float> shortBlock(2, 128);
+    shortBlock.clear();
+    analyzer.push(shortBlock);
+    check(!analyzer.read(spectrum), "partial window published");
+    analyzer.setEnabled(false);
+    analyzer.push(audio);
+    check(!analyzer.read(spectrum), "disabled frame published");
+    analyzer.setEnabled(true);
+    audio.clear();
+    audio.setSample(0, 0, std::numeric_limits<float>::quiet_NaN());
+    analyzer.push(audio);
+    check(analyzer.read(spectrum), "missing clean silence");
+    for (const auto value : spectrum) check(value == -96.0f, "non-finite or silence contamination");
+    std::atomic<bool> done { false };
+    std::thread producer([&] {
+        for (int i = 0; i < 2000; ++i) analyzer.push(audio);
+        done.store(true, std::memory_order_release);
+    });
+    while (!done.load(std::memory_order_acquire))
+        if (analyzer.read(spectrum))
+            for (const auto value : spectrum) check(value == -96.0f, "torn concurrent snapshot");
+    producer.join();
+    std::cout << "8192-point waterfall: close tones, stereo, reset, finite and concurrent snapshots passed\n";
+}
 } // namespace
 
 int main()
 {
+    requireWaterfallDetail();
     EngineParameters parameters;
     parameters.quality = Quality::normal;
     parameters.amount = 1.0f;

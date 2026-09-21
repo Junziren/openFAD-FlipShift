@@ -27,7 +27,7 @@ struct EngineParameters
     PitchScale pitchScale = PitchScale::major;
     float mix = 0.5f;
     float outputGainDb = 0.0f;
-    Quality quality = Quality::normal;
+    Quality quality = Quality::high;
     bool bypass = false;
     bool freeze = false;
 };
@@ -68,6 +68,8 @@ private:
     static constexpr int maximumFftSize = 2048;
     static constexpr int maximumAnalyzerBins = maximumFftSize / 2 + 1;
     static constexpr int analyzerBufferCount = 3;
+    static constexpr int analyzerDirtyBit = 4;
+    static constexpr int analyzerIndexMask = 3;
     static_assert(std::atomic<int>::is_always_lock_free);
     static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
 
@@ -92,7 +94,7 @@ private:
     int fftSize = 1024;
     int hopSize = 256;
     int ringMask = 1023;
-    Quality currentQuality = Quality::normal;
+    Quality currentQuality = Quality::high;
 
     std::unique_ptr<juce::dsp::FFT> fft;
     std::vector<float> windowBuffer;
@@ -102,7 +104,6 @@ private:
     int analyzerWriteIndex = 0;
     mutable std::atomic<int> analyzerReadyIndex { 1 };
     mutable int analyzerReadIndex = 2;
-    std::atomic<std::uint32_t> analyzerPublishedSequence { 0 };
     std::atomic<std::uint32_t> analyzerGeneration { 1 };
     std::atomic<bool> analyzerEnabled { false };
     std::atomic<bool> analyzerHasData { false };
